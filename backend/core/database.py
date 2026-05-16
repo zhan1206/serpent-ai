@@ -6,8 +6,18 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-import chromadb
-from neo4j import GraphDatabase
+
+# 可选依赖 - 使用try/except处理
+try:
+    import chromadb
+except ImportError:
+    chromadb = None
+
+try:
+    from neo4j import GraphDatabase
+except ImportError:
+    GraphDatabase = None
+
 from typing import Generator, Any
 import logging
 from pathlib import Path
@@ -60,6 +70,9 @@ _chroma_client = None
 def get_chroma_client():
     """获取ChromaDB客户端（单例）"""
     global _chroma_client
+    if chromadb is None:
+        logger.warning("ChromaDB未安装，跳过初始化")
+        return None
     if _chroma_client is None:
         persist_dir = Path(settings.CHROMA_PERSIST_DIR)
         persist_dir.mkdir(parents=True, exist_ok=True)
@@ -89,6 +102,9 @@ _neo4j_driver = None
 def get_neo4j_driver():
     """获取Neo4j驱动（单例）"""
     global _neo4j_driver
+    if GraphDatabase is None:
+        logger.warning("Neo4j未安装，跳过初始化")
+        return None
     if _neo4j_driver is None:
         try:
             _neo4j_driver = GraphDatabase.driver(
@@ -101,7 +117,7 @@ def get_neo4j_driver():
             logger.info(f"Neo4j驱动初始化完成: {settings.NEO4J_URI}")
         except Exception as e:
             logger.error(f"Neo4j连接失败: {e}")
-            raise
+            return None
     
     return _neo4j_driver
 
@@ -150,20 +166,24 @@ def check_db_health() -> dict:
         logger.error(f"SQLite健康检查失败: {e}")
     
     # ChromaDB检查
-    try:
-        client = get_chroma_client()
-        client.heartbeat()
-        health["chromadb"] = True
-    except Exception as e:
-        logger.error(f"ChromaDB健康检查失败: {e}")
+    if chromadb is not None:
+        try:
+            client = get_chroma_client()
+            if client:
+                client.heartbeat()
+                health["chromadb"] = True
+        except Exception as e:
+            logger.error(f"ChromaDB健康检查失败: {e}")
     
     # Neo4j检查
-    try:
-        driver = get_neo4j_driver()
-        with driver.session() as session:
-            session.run("RETURN 1")
-        health["neo4j"] = True
-    except Exception as e:
-        logger.error(f"Neo4j健康检查失败: {e}")
+    if GraphDatabase is not None:
+        try:
+            driver = get_neo4j_driver()
+            if driver:
+                with driver.session() as session:
+                    session.run("RETURN 1")
+                health["neo4j"] = True
+        except Exception as e:
+            logger.error(f"Neo4j健康检查失败: {e}")
     
     return health

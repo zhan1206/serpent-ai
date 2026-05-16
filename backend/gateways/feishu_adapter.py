@@ -2,7 +2,7 @@
 飞书平台适配器
 支持飞书消息、回调、事件处理
 """
-from typing import Dict, Any, Optional, Callable, Awaitable
+from typing import Dict, Any, Optional, Callable, Awaitable, List
 from datetime import datetime
 import logging
 import aiohttp
@@ -163,26 +163,133 @@ class FeishuAdapter(PlatformAdapter):
             return json.dumps({"text": response.message})
     
     async def on_message(self, message: Message, handler: Callable[[Message], Awaitable[Response]]) -> None:
-        """处理飞书消息事件（需要通过WebSocket或回调URL接收）"""
+        """注册消息处理器"""
         try:
             if not handler:
                 self.logger.warning("消息处理器未设置")
                 return
-            # TODO: 实现飞书消息监听
-            self.logger.debug(f"消息处理器已注册: {message}")
+            
+            self.message_handler = handler
+            self.logger.info("飞书消息处理器已注册")
+            
         except Exception as e:
             self.logger.error(f"注册消息处理器失败: {e}")
     
     async def on_callback(self, callback_id: str, data: Dict[str, Any], handler: Callable) -> None:
-        """处理飞书回调"""
+        """注册回调处理器(飞书卡片操作等)"""
         try:
             if not callback_id:
                 self.logger.warning("回调ID为空")
                 return
-            # TODO: 实现飞书回调处理
-            self.logger.debug(f"回调处理器已注册: {callback_id}")
+            
+            if not hasattr(self, 'callback_handlers'):
+                self.callback_handlers = {}
+            self.callback_handlers[callback_id] = handler
+            self.logger.info(f"回调处理器已注册: {callback_id}")
+            
         except Exception as e:
             self.logger.error(f"注册回调处理器失败: {e}")
+    
+    async def handle_webhook_event(self, event: Dict[str, Any]) -> Optional[Response]:
+        """处理Webhook事件(接收飞书回调)"""
+        try:
+            event_type = event.get("type")
+            
+            if event_type == "url_verification":
+                # URL验证 - 返回challenge
+                return Response(
+                    message="",
+                    msg_type="json",
+                    meta={"challenge": event.get("challenge", "")}
+                )
+            elif event_type == "im.message.receive_v1":
+                # 接收消息事件
+                message_data = event.get("message", {})
+                msg = Message(
+                    msg_id=message_data.get("message_id", ""),
+                    content=message_data.get("text_content", ""),
+                    sender_id=message_data.get("sender_id", {}).get("open_id", ""),
+                    metadata=event
+                )
+                if hasattr(self, 'message_handler') and self.message_handler:
+                    return await self.message_handler(msg)
+                return None
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"处理Webhook事件失败: {e}")
+            return None
+    
+    async def upload_image(self, image_path: str) -> Optional[str]:
+        """上传图片到飞书"""
+        try:
+            if not await self._ensure_token():
+                return None
+            
+            url = f"{self.host}/open-apis/im/v1/images"
+            headers = {"Authorization": f"Bearer {self.access_token}"}
+            
+            data = aiohttp.FormData()
+            data.add_field('image_type', 'message')
+            with open(image_path, 'rb') as f:
+                data.add_field('image', f, filename=image_path)
+                
+            async with self.session.post(url, headers=headers, data=data) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    if result.get("msg") == "success":
+                        return result.get("data", {}).get("image_key")
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"上传图片失败: {e}")
+            return None
+    
+    async def get_chat_info(self, chat_id: str) -> Optional[Dict[str, Any]]:
+        """获取群聊信息"""
+        try:
+            if not await self._ensure_token():
+                return None
+            
+            url = f"{self.host}/open-apis/im/v1/chats/{chat_id}"
+            headers = {"Authorization": f"Bearer {self.access_token}"}
+            
+            async with self.session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("msg") == "success":
+                        return data.get("data", {})
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"获取群聊信息失败: {e}")
+            return None
+    
+    async def create_chat(self, name: str, user_ids: List[str]) -> Optional[str]:
+        """创建群聊"""
+        try:
+            if not await self._ensure_token():
+                return None
+            
+            url = f"{self.host}/open-apis/im/v1/chats"
+            headers = {"Authorization": f"Bearer {self.access_token}"}
+            payload = {
+                "name": name,
+                "user_id_list": user_ids,
+                "chat_type": "group"
+            }
+            
+            async with self.session.post(url, headers=headers, json=payload) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("msg") == "success":
+                        return data.get("data", {}).get("chat_id")
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"创建群聊失败: {e}")
+            return None
     
     async def cleanup(self) -> None:
         """清理资源"""
