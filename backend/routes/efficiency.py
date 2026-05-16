@@ -86,3 +86,52 @@ async def cache_operation(request: Request, op: str = Query(..., alias="operatio
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health")
+async def efficiency_health_check():
+    """效率引擎健康检查"""
+    try:
+        from efficiency import get_global_engine
+        engine = get_global_engine()
+        
+        # 检查各个组件
+        status = {
+            "token_optimizer": "healthy",
+            "prompt_distiller": "healthy", 
+            "output_compressor": "healthy",
+            "cache": "healthy"
+        }
+        
+        # 检查实际组件
+        try:
+            engine["token_optimizer"].get_stats()
+        except Exception:
+            status["token_optimizer"] = "error"
+        
+        try:
+            engine["prompt_distiller"].get_cache_stats()
+        except Exception:
+            status["prompt_distiller"] = "error"
+            
+        try:
+            engine["output_compressor"].get_stats()
+        except Exception:
+            status["output_compressor"] = "error"
+        
+        try:
+            engine["cache"].get_stats()
+        except Exception:
+            status["cache"] = "error"
+        
+        all_healthy = all(v == "healthy" for v in status.values())
+        
+        return {
+            "status": "healthy" if all_healthy else "degraded",
+            "components": status
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
