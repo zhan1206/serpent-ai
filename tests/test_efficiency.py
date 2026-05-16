@@ -66,7 +66,7 @@ class TestPromptDistiller:
 你擅长Web开发、移动端开发、后端开发。
 你了解最新的AI技术和工具。
 你能够提供高质量的代码示例和解释。
-你总是在回答中保持友好和专业。\"\"\"
+你总是在回答中保持友好和专业。"""
         
         # 蒸馏
         distilled = await distiller.distill(original)
