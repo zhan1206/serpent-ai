@@ -23,6 +23,11 @@ from models.base_model import Message
 from tools import get_global_registry, get_global_precompiler, get_global_distiller
 from tools.builtin_tools import register_all_builtin_tools
 
+from routes.efficiency import router as efficiency_router
+
+# 导入效率引擎
+from efficiency import get_global_engine
+
 # 初始化日志
 setup_logging()
 logger = get_logger(__name__)
@@ -103,6 +108,9 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json"
 )
+
+# 注册效率引擎路由
+app.include_router(efficiency_router)
 
 # ==================== 中间件配置 ====================
 
