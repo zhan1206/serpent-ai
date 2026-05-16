@@ -9,11 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from core.config import settings
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 # Web界面配置
 WEB_UI_DIR = Path(__file__).parent / "static"
+
+# 应用启动时间
+APP_START_TIME = datetime.now()
 
 
 def create_web_app() -> FastAPI:
@@ -75,10 +79,18 @@ async def settings_page(request: Request):
 @app.get("/api/status")
 async def api_status():
     """API状态"""
+    uptime_seconds = (datetime.now() - APP_START_TIME).total_seconds()
+    # 格式化为可读格式
+    hours = int(uptime_seconds // 3600)
+    minutes = int((uptime_seconds % 3600) // 60)
+    seconds = int(uptime_seconds % 60)
+    uptime_str = f"{hours}h {minutes}m {seconds}s"
+    
     return {
         "status": "online",
         "version": "1.0.0",
-        "uptime": "TODO"
+        "uptime": uptime_str,
+        "uptime_seconds": int(uptime_seconds)
     }
 
 
