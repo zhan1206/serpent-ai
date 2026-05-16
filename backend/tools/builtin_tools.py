@@ -238,6 +238,35 @@ def json_format(args: Dict) -> Dict:
         }
 
 
+# 内置工具注册表
+_BUILTIN_TOOLS = []
+
+
+def list_builtin_tools():
+    """列出所有内置工具"""
+    global _BUILTIN_TOOLS
+    if not _BUILTIN_TOOLS:
+        # 临时注册以获取列表
+        from .tool_registry import ToolRegistry
+        registry = ToolRegistry()
+        register_all_builtin_tools()
+        _BUILTIN_TOOLS = registry.list_tools()
+    return _BUILTIN_TOOLS
+
+
+def search_builtin_tools(query: str):
+    """搜索内置工具"""
+    all_tools = list_builtin_tools()
+    query = query.lower()
+    results = []
+    for tool in all_tools:
+        name = tool.get("name", "").lower()
+        desc = tool.get("description", "").lower()
+        if query in name or query in desc:
+            results.append(tool)
+    return results
+
+
 # 示例：如何添加新的内置工具
 if __name__ == "__main__":
     # 注册所有内置工具

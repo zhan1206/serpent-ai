@@ -8,6 +8,8 @@ import asyncio
 from typing import Dict, Any, Optional
 from .tool_registry import ToolRegistry, get_global_registry
 
+import logging
+
 logger = logging.getLogger(__name__)
 
 
