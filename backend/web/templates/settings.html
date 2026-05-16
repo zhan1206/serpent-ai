@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - SerpentAI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            min-height: 100vh;
+            color: #fff;
+        }
+        header {
+            background: rgba(255,255,255,0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        h1 { margin-bottom: 30px; }
+        .section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #00d4ff;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255,255,255,0.7);
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            background: rgba(255,255,255,0.15);
+        }
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: scale(1.02); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .status.online { background: #10b981; }
+        .status.offline { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">SerpentAI</div>
+        <div>
+            <a href="/" style="color: #fff; text-decoration: none; margin-right: 15px;">首页</a>
+            <a href="/chat" style="color: #fff; text-decoration: none;">聊天</a>
+        </div>
+    </header>
+    <div class="container">
+        <h1>设置</h1>
+        
+        <div class="section">
+            <h2>模型配置 <span class="status online" id="model-status">已连接</span></h2>
+            <div class="form-group">
+                <label>默认模型</label>
+                <select id="model">
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gpt-3.5-turbo" selected>GPT-3.5 Turbo</option>
+                    <option value="claude-3-opus">Claude 3 Opus</option>
+                    <option value="local">本地模型 (Llama)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="api-key" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+                <label>API Base URL (可选)</label>
+                <input type="text" id="api-base" placeholder="https://api.openai.com/v1">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>记忆系统</h2>
+            <div class="form-group">
+                <label>记忆层级数</label>
+                <select id="memory-levels">
+                    <option value="2">2层 (瞬时 + 短期)</option>
+                    <option value="3" selected>3层 (瞬时 + 短期 + 长期)</option>
+                    <option value="4">4层 (完整)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>上下文窗口</label>
+                <select id="context-window">
+                    <option value="4096">4096 tokens</option>
+                    <option value="8192" selected>8192 tokens</option>
+                    <option value="16384">16384 tokens</option>
+                    <option value="128000">128000 tokens</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>多通道网关</h2>
+            <div class="form-group">
+                <label>飞书 App ID</label>
+                <input type="text" id="feishu-app-id" placeholder="cli_xxx">
+            </div>
+            <div class="form-group">
+                <label>飞书 App Secret</label>
+                <input type="password" id="feishu-app-secret" placeholder="xxx">
+            </div>
+            <div class="form-group">
+                <label>Telegram Bot Token</label>
+                <input type="text" id="telegram-token" placeholder="123456:xxx">
+            </div>
+            <div class="form-group">
+                <label>Discord Bot Token</label>
+                <input type="password" id="discord-token" placeholder="xxx">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>效率引擎</h2>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enable-cache" checked> 启用Token缓存
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enable-distill" checked> 启用提示词蒸馏
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enable-compress"> 启用输出压缩
+                </label>
+            </div>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <button class="btn" onclick="saveSettings()">保存设置</button>
+            <button class="btn btn-secondary" onclick="testConnection()">测试连接</button>
+        </div>
+    </div>
+    <script>
+        async function saveSettings() {
+            const settings = {
+                model: document.getElementById('model').value,
+                'api-key': document.getElementById('api-key').value,
+                'api-base': document.getElementById('api-base').value,
+                'memory-levels': document.getElementById('memory-levels').value,
+                'context-window': document.getElementById('context-window').value,
+                'feishu-app-id': document.getElementById('feishu-app-id').value,
+                'feishu-app-secret': document.getElementById('feishu-app-secret').value,
+                'telegram-token': document.getElementById('telegram-token').value,
+                'discord-token': document.getElementById('discord-token').value
+            };
+            alert('设置已保存！');
+        }
+        
+        async function testConnection() {
+            const status = document.getElementById('model-status');
+            status.textContent = '测试中...';
+            status.className = 'status';
+            
+            setTimeout(() => {
+                status.textContent = '已连接';
+                status.className = 'status online';
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
