@@ -2,10 +2,17 @@
 SerpentAI 测试配置
 Pytest fixtures和配置
 """
+import sys
+from pathlib import Path
+
+# 添加backend到Python路径
+backend_path = Path(__file__).parent.parent / "backend"
+if str(backend_path) not in sys.path:
+    sys.path.insert(0, str(backend_path))
+
 import pytest
 import asyncio
 from typing import Generator
-from pathlib import Path
 
 # 测试配置
 TEST_DATA_DIR = Path(__file__).parent / "data"
