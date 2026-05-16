@@ -1,12 +1,13 @@
 """
 SerpentAI 主应用入口
 FastAPI应用初始化、路由配置、中间件设置
+集成四层记忆系统（瞬时、短期、长期、归档）
 """
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List, Dict, Any, Optional
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +17,7 @@ import uvicorn
 from core.config import settings, get_settings
 from core.logging_config import setup_logging, get_logger
 from core.database import init_db, check_db_health
+from models.base_model import Message
 
 # 初始化日志
 setup_logging()
@@ -52,6 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"{settings.APP_NAME} 启动完成！")
         logger.info(f"调试模式: {settings.DEBUG}")
         logger.info(f"环境: {settings.ENVIRONMENT}")
+        logger.info("记忆系统已集成：瞬时、短期、长期、归档")
         
     except Exception as e:
         logger.error(f"启动失败: {e}")
@@ -71,7 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="终极自托管全功能AI智能体框架",
+    description="终极自托管全功能AI智能体框架（集成四层记忆系统）",
     version=settings.APP_VERSION,
     lifespan=lifespan,
     docs_url="/api/docs",
@@ -100,22 +103,33 @@ async def root():
         "version": settings.APP_VERSION,
         "description": "终极自托管全功能AI智能体框架",
         "documentation": "/api/docs",
-        "status": "running"
+        "status": "running",
+        "memory_system": "enabled（四层记忆：瞬时、短期、长期、归档）"
     }
 
 @app.get("/health")
 async def health_check():
     """
-    健康检查端点
-    用于监控和负载均衡器探测
+    健康检查端点（包含记忆系统状态）
     """
     db_health = check_db_health()
+    
+    # 检查记忆系统
+    memory_stats = {}
+    try:
+        from memory import get_memory_manager
+        memory_mgr = get_memory_manager()
+        memory_stats = memory_mgr.get_stats()
+    except Exception as e:
+        logger.error(f"记忆系统健康检查失败: {e}")
+        memory_stats = {"error": str(e)}
     
     health_status = {
         "status": "healthy" if all(db_health.values()) else "degraded",
         "version": settings.APP_VERSION,
         "environment": settings.ENVIRONMENT,
         "database": db_health,
+        "memory": memory_stats
     }
     
     return health_status
@@ -132,10 +146,15 @@ async def list_models():
     }
 
 @app.post("/api/chat")
-async def chat(request: Request):
+async def chat(
+    request: Request,
+    session_id: str = Query(..., description="会话ID")
+):
     """
-    聊天接口（简化版）
-    接收消息，调用模型生成响应
+    聊天接口（集成记忆系统）
+    1. 从记忆召回上下文
+    2. 调用模型生成响应
+    3. 保存消息到记忆
     """
     try:
         data = await request.json()
@@ -146,20 +165,56 @@ async def chat(request: Request):
         if not messages:
             raise HTTPException(status_code=400, detail="消息列表不能为空")
         
-        # 创建模型适配器
-        from models.base_model import create_adapter
-        from models.base_model import Message
+        # 获取记忆管理器
+        from memory import get_memory_manager
+        memory_mgr = get_memory_manager()
         
-        adapter = create_adapter(model_name)
+        # 1. 从记忆系统召回上下文
+        query = messages[-1]["content"] if messages else None
+        logger.info(f"聊天请求 | session: {session_id} | query: {query[:50] if query else 'None'}...")
         
-        # 转换消息格式
-        chat_messages = [
+        recalled = memory_mgr.recall(
+            session_id=session_id,
+            query=query,
+            limit=10,
+            include_instant=True,
+            include_short_term=True,
+            include_long_term=True,
+            include_archive=False
+        )
+        logger.info(f"召回记忆 | 数量: {len(recalled)}")
+        
+        # 2. 构建完整消息列表（召回的上下文 + 当前消息）
+        context_msgs = [
+            Message(role=msg["role"], content=msg["content"])
+            for msg in recalled
+        ]
+        
+        current_msgs = [
             Message(role=msg["role"], content=msg["content"])
             for msg in messages
         ]
         
-        # 生成响应
-        response = adapter.generate(chat_messages)
+        # 合并消息（去重由memory_mgr.recall处理）
+        all_msgs = context_msgs + current_msgs
+        
+        # 3. 创建模型适配器
+        from models.base_model import create_adapter
+        adapter = create_adapter(model_name)
+        
+        # 4. 生成响应
+        response = adapter.generate(all_msgs)
+        
+        # 5. 保存当前消息到记忆系统
+        for msg in current_msgs:
+            memory_mgr.add_message(session_id, msg)
+            logger.debug(f"保存消息到记忆 | role: {msg.role}")
+        
+        # 6. 保存助手响应到记忆系统
+        assistant_msg = Message(role="assistant", content=response.content)
+        memory_mgr.add_message(session_id, assistant_msg)
+        
+        logger.info(f"聊天完成 | session: {session_id} | 响应长度: {len(response.content)}")
         
         return {
             "response": response.content,
@@ -171,10 +226,140 @@ async def chat(request: Request):
             },
             "cost": response.cost,
             "latency_ms": response.latency_ms,
+            "context_used": len(recalled)  # 使用的上下文数量
         }
         
     except Exception as e:
         logger.error(f"聊天接口失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== 记忆系统接口 ====================
+
+@app.post("/api/memory/add")
+async def add_to_memory(
+    request: Request,
+    session_id: str = Query(..., description="会话ID")
+):
+    """
+    添加消息到记忆系统
+    """
+    try:
+        data = await request.json()
+        
+        role = data.get("role", "user")
+        content = data.get("content", "")
+        
+        if not content:
+            raise HTTPException(status_code=400, detail="内容不能为空")
+        
+        # 创建消息对象
+        message = Message(role=role, content=content)
+        
+        # 添加到记忆系统
+        from memory import get_memory_manager
+        memory_mgr = get_memory_manager()
+        memory_mgr.add_message(session_id, message)
+        
+        logger.info(f"手动添加消息到记忆 | session: {session_id} | role: {role}")
+        
+        return {
+            "status": "success",
+            "message": "已添加到记忆系统"
+        }
+        
+    except Exception as e:
+        logger.error(f"添加消息到记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/memory/recall")
+async def recall_from_memory(
+    request: Request,
+    session_id: str = Query(..., description="会话ID")
+):
+    """
+    从记忆系统召回消息
+    """
+    try:
+        data = await request.json()
+        
+        query = data.get("query")
+        limit = data.get("limit", 10)
+        include_instant = data.get("include_instant", True)
+        include_short_term = data.get("include_short_term", True)
+        include_long_term = data.get("include_long_term", True)
+        include_archive = data.get("include_archive", False)
+        
+        # 从记忆系统召回
+        from memory import get_memory_manager
+        memory_mgr = get_memory_manager()
+        
+        results = memory_mgr.recall(
+            session_id=session_id,
+            query=query,
+            limit=limit,
+            include_instant=include_instant,
+            include_short_term=include_short_term,
+            include_long_term=include_long_term,
+            include_archive=include_archive
+        )
+        
+        logger.info(f"召回记忆 | session: {session_id} | query: {query[:50] if query else 'None'}... | 结果数: {len(results)}")
+        
+        return {
+            "results": results,
+            "count": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"从记忆召回失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/memory/stats")
+async def get_memory_stats():
+    """
+    获取记忆系统统计信息
+    """
+    try:
+        from memory import get_memory_manager
+        memory_mgr = get_memory_manager()
+        
+        stats = memory_mgr.get_stats()
+        logger.info(f"获取记忆统计: {stats}")
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"获取记忆统计失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/memory/clear")
+async def clear_memory(
+    session_id: Optional[str] = Query(None, description="会话ID（不提供则清空所有）")
+):
+    """
+    清空记忆（指定会话或全部）
+    """
+    try:
+        from memory import get_memory_manager
+        memory_mgr = get_memory_manager()
+        
+        if session_id:
+            memory_mgr.clear_session(session_id)
+            logger.info(f"清空会话记忆 | session: {session_id}")
+            return {
+                "status": "success",
+                "message": f"已清空会话 {session_id} 的记忆"
+            }
+        else:
+            memory_mgr.clear_all()
+            logger.info("清空所有记忆")
+            return {
+                "status": "success",
+                "message": "已清空所有记忆"
+            }
+        
+    except Exception as e:
+        logger.error(f"清空记忆失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== 错误处理 ====================
