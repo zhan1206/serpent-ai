@@ -11,9 +11,9 @@ class TestTokenOptimizer:
     @pytest.mark.asyncio
     async def test_calculate_tokens(self):
         """测试Token计算"""
-        from efficiency.token_optimizer import TokenCalculator
+        from efficiency import TokenOptimizer
         
-        calc = TokenCalculator()
+        calc = TokenOptimizer()
         
         # 测试文本Token计算
         text = "你好，这是一段测试文本"
@@ -23,7 +23,7 @@ class TestTokenOptimizer:
     @pytest.mark.asyncio
     async def test_optimize_prompt(self):
         """测试提示词优化"""
-        from efficiency.token_optimizer import PromptOptimizer
+        from efficiency import PromptOptimizer
         
         optimizer = PromptOptimizer()
         
@@ -39,9 +39,9 @@ class TestTokenOptimizer:
     @pytest.mark.asyncio
     async def test_get_stats(self):
         """测试统计信息"""
-        from efficiency.token_optimizer import get_global_optimizer
+        from efficiency import get_global_engine
         
-        optimizer = get_global_optimizer()
+        optimizer = get_global_engine()
         stats = optimizer.get_stats()
         
         assert isinstance(stats, dict)
@@ -53,7 +53,7 @@ class TestPromptDistiller:
     @pytest.mark.asyncio
     async def test_distill_system_prompt(self):
         """测试系统提示词蒸馏"""
-        from efficiency.prompt_distiller import PromptDistiller
+        from efficiency import PromptDistiller
         
         distiller = PromptDistiller()
         
@@ -77,7 +77,7 @@ class TestPromptDistiller:
     @pytest.mark.asyncio
     async def test_cache(self):
         """测试缓存"""
-        from efficiency.prompt_distiller import PromptDistiller
+        from efficiency import PromptDistiller
         
         distiller = PromptDistiller()
         
@@ -96,7 +96,7 @@ class TestIncrementalContextManager:
     @pytest.mark.asyncio
     async def test_get_incremental(self):
         """测试增量获取"""
-        from efficiency.incremental_context import IncrementalContextManager
+        from efficiency import IncrementalContextManager
         
         manager = IncrementalContextManager()
         
@@ -119,7 +119,7 @@ class TestIncrementalContextManager:
     @pytest.mark.asyncio
     async def test_save_state(self):
         """测试状态保存"""
-        from efficiency.incremental_context import IncrementalContextManager
+        from efficiency import IncrementalContextManager
         
         manager = IncrementalContextManager()
         
@@ -136,7 +136,7 @@ class TestIncrementalContextManager:
     @pytest.mark.asyncio
     async def test_restore_state(self):
         """测试状态恢复"""
-        from efficiency.incremental_context import IncrementalContextManager
+        from efficiency import IncrementalContextManager
         
         manager = IncrementalContextManager()
         
@@ -158,7 +158,7 @@ class TestSemanticCompressor:
     @pytest.mark.asyncio
     async def test_compress(self):
         """测试压缩"""
-        from efficiency.semantic_compressor import SemanticCompressor
+        from efficiency import SemanticCompressor
         
         compressor = SemanticCompressor()
         
@@ -183,7 +183,7 @@ class TestSemanticCompressor:
     @pytest.mark.asyncio
     async def test_extract_key_points(self):
         """测试关键点提取"""
-        from efficiency.semantic_compressor import SemanticCompressor
+        from efficiency import SemanticCompressor
         
         compressor = SemanticCompressor()
         
@@ -205,9 +205,9 @@ class TestMultiLevelCache:
     @pytest.mark.asyncio
     async def test_prompt_cache(self):
         """测试提示词缓存"""
-        from efficiency.cache import PromptCache
+        from efficiency import MultiLevelCache
         
-        cache = PromptCache()
+        cache = MultiLevelCache()
         
         # 设置缓存
         key = "prompt:test"
@@ -222,9 +222,9 @@ class TestMultiLevelCache:
     @pytest.mark.asyncio
     async def test_model_response_cache(self):
         """测试模型响应缓存"""
-        from efficiency.cache import ModelResponseCache
+        from efficiency import MultiLevelCache
         
-        cache = ModelResponseCache()
+        cache = MultiLevelCache()
         
         # 设置缓存
         messages = [
@@ -246,9 +246,9 @@ class TestMultiLevelCache:
     @pytest.mark.asyncio
     async def test_tool_cache(self):
         """测试工具缓存"""
-        from efficiency.cache import ToolCache
+        from efficiency import MultiLevelCache
         
-        cache = ToolCache()
+        cache = MultiLevelCache()
         
         # 设置缓存
         await cache.set("web_search", {"id": "ws001", "description": "搜索"})
