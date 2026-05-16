@@ -77,3 +77,18 @@ async def api_memory_stats():
 @router.get("/api/tools")
 async def api_tools():
     return {"tools": []}
+
+
+@router.get("/health")
+async def web_health_check():
+    """Web服务健康检查"""
+    try:
+        return {
+            "status": "healthy",
+            "service": "web"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
