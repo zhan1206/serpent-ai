@@ -96,3 +96,31 @@ async def register_message_handler(request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health")
+async def gateway_health_check():
+    """网关健康检查"""
+    try:
+        from gateways import get_gateway_manager
+        manager = get_gateway_manager()
+        
+        # 检查所有已注册的适配器
+        adapters = {}
+        for name, adapter in manager._adapters.items():
+            try:
+                adapters[name] = "healthy" if adapter else "error"
+            except Exception:
+                adapters[name] = "error"
+        
+        all_healthy = all(v == "healthy" for v in adapters.values())
+        
+        return {
+            "status": "healthy" if all_healthy else "degraded",
+            "adapters": adapters
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
