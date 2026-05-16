@@ -1,0 +1,254 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv
+env.bak/
+venv.bak/
+
+# Poetry
+dist/
+build/
+*.egg-info/
+
+# Virtual Environment
+venv/
+env/
+.venv
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Data
+data/
+models/
+*.gguf
+*.bin
+*.ggml
+
+# ChromaDB
+chroma/
+
+# Neo4j
+neo4j/
+*.db
+
+# Redis
+redis-data/
+dump.rdb
+appendonly.aof
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+*.cover
+*.py,cover
+
+# Distribution / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# celery
+celerybeat-schedule.*
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# React
+frontend/build/
+frontend/node_modules/
+frontend/.env
+frontend/.env.local
+
+# React Native
+mobile/node_modules/
+mobile/.expo/
+mobile/web-build/
+mobile/dist/
+mobile/expo/
+
+# Android
+*.apk
+*.ap_
+*.dex
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+
+# iOS
+mobile/ios/build/
+mobile/ios/Pods/
+mobile/ios/*.pbxuser
+mobile/ios/xcuserdata/
+mobile/ios/*.mode1v3
+mobile/ios/*.mode2v3
+mobile/ios/*.perspectivev3
+mobile/ios/xcuserstate
+mobile/ios/Pods/
+mobile/ios/__MACOSX/
+
+# Rust
+rust_core/target/
+rust_core/**/*.rs.bk
+**/*.pdb
+
+# Logs (duplicate but safe)
+logs/
+*.log
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Custom
+keys/
+*.pem
+*.key
+*.cert
+*.crt
+*.keystore
+*.jks
+
+# Large model files
+*.gguf
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temp files
+*.tmp
+*.temp
+.temp/
+.tmp/
+
+# Local config
+local_config.yaml
+secrets.yaml
