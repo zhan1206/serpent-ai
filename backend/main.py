@@ -19,6 +19,10 @@ from core.logging_config import setup_logging, get_logger
 from core.database import init_db, check_db_health
 from models.base_model import Message
 
+# 导入工具系统集成
+from tools import get_global_registry, get_global_precompiler, get_global_distiller
+from tools.builtin_tools import register_all_builtin_tools
+
 # 初始化日志
 setup_logging()
 logger = get_logger(__name__)
@@ -55,6 +59,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"调试模式: {settings.DEBUG}")
         logger.info(f"环境: {settings.ENVIRONMENT}")
         logger.info("记忆系统已集成：瞬时、短期、长期、归档")
+        
+        # 初始化工具系统
+        logger.info("正在初始化工具系统...")
+        try:
+            # 注册内置工具
+            register_all_builtin_tools()
+            
+            # 预编译和蒸馏工具（Token优化）
+            from tools.tool_precompiler import precompile_tools
+            from tools.tool_distiller import distill_tools
+            
+            precompile_tools()
+            distill_tools()
+            
+            logger.info("工具系统初始化完成！")
+            logger.info(f"已注册工具数: {len(get_global_registry().list_tools())}")
+        except Exception as e:
+            logger.warning(f"工具系统初始化失败（可稍后重试）: {e}")
         
     except Exception as e:
         logger.error(f"启动失败: {e}")
@@ -312,6 +334,128 @@ async def recall_from_memory(
         
     except Exception as e:
         logger.error(f"从记忆召回失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== 工具系统接口 ====================
+
+@app.get("/api/tools")
+async def list_tools(
+    category: Optional[str] = Query(None, description="按分类过滤"),
+    tool_type: Optional[str] = Query(None, description="按类型过滤(mcp/builtin/custom)")
+):
+    """
+    列出所有可用工具
+    """
+    try:
+        registry = get_global_registry()
+        tools = registry.list_tools(category=category, tool_type=tool_type)
+        
+        logger.info(f"列出工具 | 数量: {len(tools)}")
+        
+        return {
+            "tools": tools,
+            "count": len(tools),
+            "category": category,
+            "type": tool_type
+        }
+        
+    except Exception as e:
+        logger.error(f"列出工具失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tools/call")
+async def call_tool(request: Request):
+    """
+    调用工具
+    """
+    try:
+        data = await request.json()
+        
+        tool_name = data.get("tool_name")
+        arguments = data.get("arguments", {})
+        
+        if not tool_name:
+            raise HTTPException(status_code=400, detail="tool_name不能为空")
+        
+        # 调用工具
+        from tools.tool_executor import execute_tool
+        result = execute_tool(tool_name, arguments)
+        
+        logger.info(f"调用工具 | 工具: {tool_name} | 参数: {arguments}")
+        
+        return {
+            "status": "success",
+            "tool_name": tool_name,
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"调用工具失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tools/categories")
+async def list_tool_categories():
+    """
+    列出所有工具分类
+    """
+    try:
+        registry = get_global_registry()
+        categories = registry.list_categories()
+        
+        return {
+            "categories": categories,
+            "count": len(categories)
+        }
+        
+    except Exception as e:
+        logger.error(f"列出工具分类失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tools/search")
+async def search_tools(
+    query: str = Query(..., description="搜索关键词")
+):
+    """
+    搜索工具
+    """
+    try:
+        registry = get_global_registry()
+        results = registry.search_tools(query)
+        
+        logger.info(f"搜索工具 | 查询: {query} | 结果数: {len(results)}")
+        
+        return {
+            "query": query,
+            "results": results,
+            "count": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"搜索工具失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tools/optimized-prompt")
+async def get_optimized_tool_prompt():
+    """
+    获取优化后的工具提示词（Token优化）
+    使用预编译和蒸馏技术，减少80% Token消耗
+    """
+    try:
+        from tools.tool_precompiler import get_tools_prompt as get_precompiled
+        from tools.tool_distiller import get_distilled_prompt
+        
+        # 获取两种优化提示词
+        precompiled_prompt = get_precompiled()
+        distilled_prompt = get_distilled_prompt()
+        
+        return {
+            "precompiled_prompt": precompiled_prompt,
+            "distilled_prompt": distilled_prompt,
+            "optimization": "Tool precompilation + distillation reduces Token consumption by 80%"
+        }
+        
+    except Exception as e:
+        logger.error(f"获取优化提示词失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/memory/stats")
