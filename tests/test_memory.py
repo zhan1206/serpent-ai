@@ -4,9 +4,7 @@
 import pytest
 import asyncio
 from datetime import datetime, timedelta
-
-
-class TestInstantMemory:
+from models.base_model import Message
     """瞬时记忆测试"""
     
     @pytest.mark.asyncio
