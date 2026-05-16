@@ -3,11 +3,7 @@ Tool Executor - 工具执行器
 执行工具调用、处理错误、返回结果，支持沙箱隔离和权限控制
 """
 
-import logging
-import subprocess
-import tempfile
-import os
-import json
+from typing import Any, Dict, List, Optional
 import asyncio
 from typing import Dict, Any, Optional
 from .tool_registry import ToolRegistry, get_global_registry

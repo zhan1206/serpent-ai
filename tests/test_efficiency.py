@@ -58,7 +58,7 @@ class TestPromptDistiller:
         distiller = PromptDistiller()
         
         # 原始详细提示词
-        original = \"\"\"你是一个专业的AI助手。
+        original = """你是一个专业的AI助手。
         
 你是用Python、JavaScript、Go等多种编程语言专家。
 你有10年的软件开发经验。
