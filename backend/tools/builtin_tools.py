@@ -97,6 +97,191 @@ def register_all_builtin_tools():
     
     logger.info("Registered 5 builtin tools (demo)")
 
+    # 添加更多实用工具
+    register_builtin_tool({
+        "name": "text_summary",
+        "description": "Generate a summary of the given text",
+        "category": "text",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "max_length": {"type": "integer", "minimum": 10, "maximum": 500}
+            },
+            "required": ["text"]
+        },
+        "handler": text_summary
+    })
+    
+    register_builtin_tool({
+        "name": "word_count",
+        "description": "Count words, characters, lines in text",
+        "category": "text",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"}
+            },
+            "required": ["text"]
+        },
+        "handler": word_count
+    })
+    
+    register_builtin_tool({
+        "name": "base64_encode",
+        "description": "Encode text to Base64",
+        "category": "encoding",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"}
+            },
+            "required": ["text"]
+        },
+        "handler": base64_encode
+    })
+    
+    register_builtin_tool({
+        "name": "base64_decode",
+        "description": "Decode Base64 to text",
+        "category": "encoding",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "encoded": {"type": "string"}
+            },
+            "required": ["encoded"]
+        },
+        "handler": base64_decode
+    })
+    
+    register_builtin_tool({
+        "name": "url_encode",
+        "description": "URL encode text",
+        "category": "encoding",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"}
+            },
+            "required": ["text"]
+        },
+        "handler": url_encode
+    })
+    
+    register_builtin_tool({
+        "name": "url_decode",
+        "description": "URL decode text",
+        "category": "encoding",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "encoded": {"type": "string"}
+            },
+            "required": ["encoded"]
+        },
+        "handler": url_decode
+    })
+    
+    register_builtin_tool({
+        "name": "timestamp_converter",
+        "description": "Convert timestamp to date or vice versa",
+        "category": "time",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "value": {"type": "string"},
+                "format": {"type": "string", "enum": ["to_date", "to_timestamp"]}
+            },
+            "required": ["value", "format"]
+        },
+        "handler": timestamp_converter
+    })
+    
+    register_builtin_tool({
+        "name": "random_choice",
+        "description": "Randomly select from a list",
+        "category": "utility",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["items"]
+        },
+        "handler": random_choice
+    })
+    
+    register_builtin_tool({
+        "name": "uuid_generate",
+        "description": "Generate a UUID",
+        "category": "utility",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        },
+        "handler": uuid_generate
+    })
+    
+    register_builtin_tool({
+        "name": "list_concat",
+        "description": "Concatenate multiple lists",
+        "category": "utility",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "lists": {"type": "array", "items": {"type": "array"}}
+            },
+            "required": ["lists"]
+        },
+        "handler": list_concat
+    })
+    
+    register_builtin_tool({
+        "name": "list_filter",
+        "description": "Filter list by condition",
+        "category": "utility",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array"},
+                "condition": {"type": "string", "enum": ["even", "odd", "positive", "negative", "non_empty"]}
+            },
+            "required": ["items", "condition"]
+        },
+        "handler": list_filter
+    })
+    
+    register_builtin_tool({
+        "name": "validate_email",
+        "description": "Validate email address format",
+        "category": "validation",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "email": {"type": "string"}
+            },
+            "required": ["email"]
+        },
+        "handler": validate_email
+    })
+    
+    register_builtin_tool({
+        "name": "validate_url",
+        "description": "Validate URL format",
+        "category": "validation",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string"}
+            },
+            "required": ["url"]
+        },
+        "handler": validate_url
+    })
+    
+    logger.info("Registered 22 builtin tools")
+
 
 # 工具处理函数
 def get_current_time(args: Dict) -> Dict:
