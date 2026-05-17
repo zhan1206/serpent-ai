@@ -12,6 +12,7 @@ aiosqlite>=0.19
 redis>=4.5
 loguru>=0.7
 cryptography>=41.0
+bcrypt>=4.0
 httpx>=0.25
 python-dotenv>=1.0
 pyyaml>=6.0

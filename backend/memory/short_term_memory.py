@@ -44,10 +44,14 @@ class ShortTermMemory:
                 return
             
             try:
-                # 初始化ChromaDB
                 chroma_client = get_chroma_client()
                 
-                # 获取或创建集合
+                # Graceful degradation: if chromadb not installed, client is None
+                if chroma_client is None:
+                    logger.warning("ChromaDB not available, short-term memory disabled")
+                    self.collection = "disabled"
+                    return
+                
                 try:
                     self.collection = chroma_client.get_collection(
                         name=self.COLLECTION_NAME
@@ -62,6 +66,7 @@ class ShortTermMemory:
                 
             except Exception as e:
                 logger.error(f"ChromaDB初始化失败: {e}")
+                self.collection = "disabled"
                 raise
     
     def _get_embedding(self, text: str) -> List[float]:
@@ -133,6 +138,9 @@ class ShortTermMemory:
         content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()[:8]
         return f"{session_id}_{timestamp}_{content_hash}"
     
+    def _is_available(self) -> bool:
+        return self.collection is not None and self.collection != "disabled"
+
     def add_message(self, session_id: str, message: Message) -> None:
         """
         添加消息到短期记忆
@@ -142,6 +150,9 @@ class ShortTermMemory:
             message: 消息对象
         """
         self._ensure_collection()
+        if not self._is_available():
+            logger.warning("Short-term memory unavailable, skipping add_message")
+            return
         
         with self._lock:
             try:
@@ -219,6 +230,8 @@ class ShortTermMemory:
             List[Dict]: 相似消息列表
         """
         self._ensure_collection()
+        if not self._is_available():
+            return []
         
         with self._lock:
             try:
@@ -279,6 +292,8 @@ class ShortTermMemory:
             List[Dict]: 消息列表
         """
         self._ensure_collection()
+        if not self._is_available():
+            return []
         
         with self._lock:
             try:
@@ -317,6 +332,8 @@ class ShortTermMemory:
             session_id: 会话ID
         """
         self._ensure_collection()
+        if not self._is_available():
+            return
         
         with self._lock:
             try:
@@ -334,6 +351,8 @@ class ShortTermMemory:
     def clear_all(self) -> None:
         """清空所有短期记忆"""
         self._ensure_collection()
+        if not self._is_available():
+            return
         
         with self._lock:
             try:
@@ -360,6 +379,8 @@ class ShortTermMemory:
             Dict: 统计信息
         """
         self._ensure_collection()
+        if not self._is_available():
+            return {"type": "short_term", "error": "ChromaDB unavailable"}
         
         try:
             count = self.collection.count()
