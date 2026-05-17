@@ -51,9 +51,10 @@ logs/
 *.log
 *.log.*
 
-# Data
-data/
-models/
+# Data (root level only)
+/data/
+/models/
+/logs/
 *.gguf
 *.bin
 *.ggml
