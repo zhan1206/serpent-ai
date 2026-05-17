@@ -3,7 +3,7 @@ SerpentAI 模型适配层单元测试
 """
 import pytest
 from unittest.mock import Mock, patch
-from models.base_model import Message, ModelResponse, BaseModelAdapter, create_adapter, estimate_tokens, truncate_messages, list_supported_models
+from backend.models.base_model import Message, ModelResponse, BaseModelAdapter, create_adapter, estimate_tokens, truncate_messages, list_supported_models
 
 
 class TestMessage:

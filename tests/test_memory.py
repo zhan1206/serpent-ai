@@ -3,7 +3,7 @@
 """
 import pytest
 from datetime import datetime
-from models.base_model import Message
+from backend.models.base_model import Message
 
 
 class TestInstantMemory:
