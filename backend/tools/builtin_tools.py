@@ -24,6 +24,10 @@ def register_all_builtin_tools():
     """
     from .tool_registry import register_builtin_tool
     
+    # 注册系统操作工具（文件、命令、进程）
+    from .system_tools import register_system_tools
+    register_system_tools()
+    
     # 基础工具
     register_builtin_tool({
         "name": "get_current_time",
