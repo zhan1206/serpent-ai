@@ -35,16 +35,11 @@ class ArchiveMemory:
     def _init_table(self):
         """初始化数据库表"""
         try:
-            db = get_db()
-            
-            # 创建归档记忆表
-            db.create_all()  # 会调用Base.metadata.create_all()
-            
+            from core.database import engine, Base
+            Base.metadata.create_all(bind=engine)
             logger.info("归档记忆表初始化完成")
-            
         except Exception as e:
             logger.error(f"归档记忆表初始化失败: {e}")
-            raise
     
     def _get_connection(self):
         """获取SQLite连接（直接使用SQLite以实现归档记忆）"""

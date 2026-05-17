@@ -176,8 +176,14 @@ class CacheManager:
         mapping = self.get(cache_key)
         return mapping["name"] if mapping else None
 
-# 全局缓存管理器实例
-cache_manager = CacheManager()
+# 全局缓存管理器实例（延迟初始化）
+cache_manager = None
+
+def get_cache_manager():
+    global cache_manager
+    if cache_manager is None:
+        cache_manager = CacheManager()
+    return cache_manager
 
 # ==================== 装饰器：缓存函数结果 ====================
 
@@ -200,16 +206,19 @@ def cached(ttl: int = 3600, key_prefix: str = "func_cache"):
             cache_key = f"{key_prefix}:{cache_key}"
             
             # 尝试从缓存获取
-            cached_result = cache_manager.get(cache_key)
-            if cached_result is not None:
-                logger.debug(f"缓存命中: {func.__name__}")
-                return cached_result
+            cm = get_cache_manager()
+            if cm and cm.is_available():
+                cached_result = cm.get(cache_key)
+                if cached_result is not None:
+                    logger.debug(f"缓存命中: {func.__name__}")
+                    return cached_result
             
             # 执行函数
             result = func(*args, **kwargs)
             
             # 缓存结果
-            cache_manager.set(cache_key, result, ttl)
+            if cm and cm.is_available():
+                cm.set(cache_key, result, ttl)
             return result
         
         return wrapper
@@ -248,9 +257,12 @@ class InMemoryCache:
             del self._ttl[key]
         return True
 
-# 根据Redis可用性选择缓存后端
-if cache_manager.is_available():
-    cache = cache_manager
-else:
+# 根据Redis可用性选择缓存后端（延迟初始化）
+def _get_cache_backend():
+    cm = get_cache_manager()
+    if cm and cm.is_available():
+        return cm
     logger.warning("使用内存缓存作为备选方案")
-    cache = InMemoryCache()
+    return InMemoryCache()
+
+cache = None  # 延迟初始化，使用时调用 _get_cache_backend()

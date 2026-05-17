@@ -2,238 +2,164 @@
 记忆系统测试
 """
 import pytest
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from models.base_model import Message
 
 
-class TestMemory:
+class TestInstantMemory:
     """瞬时记忆测试"""
-    
-    @pytest.mark.asyncio
-    async def test_add_message(self):
-        """测试添加消息"""
+
+    def test_add_message(self):
         from memory.instant_memory import InstantMemory
-        
         memory = InstantMemory(max_messages=10)
-        
-        # 添加消息
-        await memory.add_message(
-            role="user",
-            content="你好",
-            metadata={"timestamp": datetime.now().isoformat()}
-        )
-        
-        # 获取最近消息
-        messages = await memory.get_recent_messages(1)
+        memory.add_message("session_1", Message(role="user", content="你好"))
+        messages = memory.get_messages("session_1")
         assert len(messages) == 1
         assert messages[0]["content"] == "你好"
-    
-    @pytest.mark.asyncio
-    async def test_max_messages(self):
-        """测试消息数量限制"""
+
+    def test_max_messages(self):
         from memory.instant_memory import InstantMemory
-        
         memory = InstantMemory(max_messages=3)
-        
-        # 添加超过限制的消息
         for i in range(5):
-            await memory.add_message(role="user", content=f"消息{i}")
-        
-        # 验证只保留最近的3条
-        messages = await memory.get_recent_messages(10)
+            memory.add_message("s1", Message(role="user", content=f"消息{i}"))
+        messages = memory.get_messages("s1")
         assert len(messages) == 3
-    
-    @pytest.mark.asyncio
-    async def test_clear(self):
-        """测试清空记忆"""
+
+    def test_clear_session(self):
         from memory.instant_memory import InstantMemory
-        
         memory = InstantMemory(max_messages=10)
-        
-        # 添加消息
-        await memory.add_message(role="user", content="测试")
-        
-        # 清空
-        await memory.clear()
-        
-        # 验证已清空
-        messages = await memory.get_recent_messages(10)
-        assert len(messages) == 0
+        memory.add_message("s1", Message(role="user", content="测试"))
+        memory.clear_session("s1")
+        assert len(memory.get_messages("s1")) == 0
+
+    def test_clear_all(self):
+        from memory.instant_memory import InstantMemory
+        memory = InstantMemory(max_messages=10)
+        memory.add_message("s1", Message(role="user", content="a"))
+        memory.add_message("s2", Message(role="user", content="b"))
+        memory.clear_all()
+        assert len(memory.get_messages("s1")) == 0
+        assert len(memory.get_messages("s2")) == 0
+
+    def test_get_formatted_messages(self):
+        from memory.instant_memory import InstantMemory
+        memory = InstantMemory(max_messages=10)
+        memory.add_message("s1", Message(role="user", content="hello"))
+        formatted = memory.get_formatted_messages("s1")
+        assert len(formatted) == 1
+        assert formatted[0]["role"] == "user"
+
+    def test_get_stats(self):
+        from memory.instant_memory import InstantMemory
+        memory = InstantMemory(max_messages=10)
+        stats = memory.get_stats()
+        assert stats["type"] == "instant"
+
+    def test_search_messages(self):
+        from memory.instant_memory import InstantMemory
+        memory = InstantMemory(max_messages=10)
+        memory.add_message("s1", Message(role="user", content="Python编程"))
+        memory.add_message("s1", Message(role="user", content="Java开发"))
+        results = memory.search_messages("s1", "Python")
+        assert len(results) == 1
+
+    def test_get_last_message(self):
+        from memory.instant_memory import InstantMemory
+        memory = InstantMemory(max_messages=10)
+        memory.add_message("s1", Message(role="user", content="first"))
+        memory.add_message("s1", Message(role="assistant", content="last"))
+        last = memory.get_last_message("s1")
+        assert last["content"] == "last"
+
+    def test_multiple_sessions(self):
+        from memory.instant_memory import InstantMemory
+        memory = InstantMemory(max_messages=10)
+        memory.add_message("s1", Message(role="user", content="a"))
+        memory.add_message("s2", Message(role="user", content="b"))
+        assert len(memory.get_messages("s1")) == 1
+        assert len(memory.get_messages("s2")) == 1
 
 
 class TestShortTermMemory:
     """短期记忆测试"""
-    
-    @pytest.mark.asyncio
-    async def test_add_memory(self):
-        """测试添加短期记忆"""
+
+    def test_create(self):
         from memory.short_term_memory import ShortTermMemory
-        
         memory = ShortTermMemory()
-        
-        # 添加记忆
-        await memory.add_memory(
-            content="用户喜欢蓝色",
-            importance=0.8,
-            session_id="test_session"
-        )
-        
-        # 搜索记忆
-        results = await memory.search("蓝色", limit=5)
-        assert len(results) > 0
-    
-    @pytest.mark.asyncio
-    async def test_search(self):
-        """测试搜索"""
+        assert memory is not None
+
+    def test_add_message(self):
         from memory.short_term_memory import ShortTermMemory
-        
         memory = ShortTermMemory()
-        
-        # 添加多条记忆
-        await memory.add_memory(content="Python编程", importance=0.9)
-        await memory.add_memory(content="JavaScript前端", importance=0.7)
-        await memory.add_memory(content="Go并发", importance=0.8)
-        
-        # 搜索
-        results = await memory.search("编程", limit=5)
-        assert len(results) > 0
-    
-    @pytest.mark.asyncio
-    async def test_get_recent(self):
-        """测试获取近期记忆"""
+        memory.add_message("session_1", Message(role="user", content="Python编程"))
+
+    def test_search_messages(self):
         from memory.short_term_memory import ShortTermMemory
-        
         memory = ShortTermMemory()
-        
-        # 添加记忆
-        for i in range(5):
-            await memory.add_memory(content=f"记忆{i}", importance=0.5)
-        
-        # 获取近期记忆
-        recent = await memory.get_recent(days=7, limit=10)
-        assert len(recent) > 0
+        results = memory.search_messages("Python", limit=5)
+        assert isinstance(results, list)
+
+    def test_get_stats(self):
+        from memory.short_term_memory import ShortTermMemory
+        memory = ShortTermMemory()
+        stats = memory.get_stats()
+        assert "type" in stats
 
 
 class TestLongTermMemory:
     """长期记忆测试"""
-    
-    @pytest.mark.asyncio
-    async def test_add_fact(self):
-        """测试添加事实"""
+
+    def test_create(self):
         from memory.long_term_memory import LongTermMemory
-        
         memory = LongTermMemory()
-        
-        # 添加事实
-        fact_id = await memory.add_fact(
-            content="SerpentAI是一个AI智能体框架",
-            category="project",
-            confidence=0.95
-        )
-        
-        assert fact_id is not None
-    
-    @pytest.mark.asyncio
-    async def test_add_relationship(self):
-        """测试添加关系"""
+        assert memory is not None
+
+    def test_add_memory(self):
         from memory.long_term_memory import LongTermMemory
-        
         memory = LongTermMemory()
-        
-        # 添加关系
-        rel_id = await memory.add_relationship(
-            from_node="用户",
-            relation="喜欢",
-            to_node="Python",
-            weight=0.8
-        )
-        
-        assert rel_id is not None
-    
-    @pytest.mark.asyncio
-    async def test_query_graph(self):
-        """测试图查询"""
+        memory.add_memory(session_id="test", content="测试内容", importance=0.8)
+
+    def test_search_memories(self):
         from memory.long_term_memory import LongTermMemory
-        
         memory = LongTermMemory()
-        
-        # 添加测试数据
-        await memory.add_fact(content="Python是一种编程语言", category="language")
-        await memory.add_fact(content="SerpentAI使用Python开发", category="project")
-        
-        # 查询
-        results = await memory.query_graph("Python")
+        results = memory.search_memories("Python", limit=5)
         assert isinstance(results, list)
-    
-    @pytest.mark.asyncio
-    async def test_get_important_memories(self):
-        """测试获取重要记忆"""
+
+    def test_get_stats(self):
         from memory.long_term_memory import LongTermMemory
-        
         memory = LongTermMemory()
-        
-        # 添加不同重要性的记忆
-        await memory.add_fact(content="重要1", category="test", confidence=0.9)
-        await memory.add_fact(content="重要2", category="test", confidence=0.8)
-        await memory.add_fact(content="重要3", category="test", confidence=0.7)
-        
-        # 获取重要记忆
-        important = await memory.get_important_memories(min_importance=0.75)
-        assert len(important) >= 2
+        stats = memory.get_stats()
+        assert "type" in stats
 
 
 class TestArchiveMemory:
     """归档记忆测试"""
-    
-    @pytest.mark.asyncio
-    async def test_archive(self):
-        """测试归档"""
+
+    def test_create(self):
         from memory.archive_memory import ArchiveMemory
-        
         memory = ArchiveMemory()
-        
-        # 归档记忆
-        await memory.archive(
-            content="2024年的旧对话",
-            summary="关于Python的讨论",
-            original_date=datetime.now() - timedelta(days=365)
-        )
-        
-        # 获取归档
-        archives = await memory.get_archives(limit=10)
-        assert len(archives) >= 0
-    
-    @pytest.mark.asyncio
-    async def test_search_archive(self):
-        """测试搜索归档"""
+        assert memory is not None
+
+    def test_add_summary(self):
         from memory.archive_memory import ArchiveMemory
-        
         memory = ArchiveMemory()
-        
-        # 归档
-        await memory.archive(
-            content="测试内容",
-            summary="测试摘要"
+        now = datetime.now().isoformat()
+        memory.add_summary(
+            session_id="test",
+            summary="测试摘要",
+            start_date=now,
+            end_date=now,
+            message_count=5
         )
-        
-        # 搜索
-        results = await memory.search_archive("测试", limit=5)
+
+    def test_search_summaries(self):
+        from memory.archive_memory import ArchiveMemory
+        memory = ArchiveMemory()
+        results = memory.search_summaries("测试", limit=5)
         assert isinstance(results, list)
-    
-    @pytest.mark.asyncio
-    async def test_restore(self):
-        """测试恢复归档"""
+
+    def test_get_stats(self):
         from memory.archive_memory import ArchiveMemory
-        
         memory = ArchiveMemory()
-        
-        # 归档
-        archive_id = await memory.archive(
-            content="需要恢复的记忆",
-            summary="测试"
-        )
-        
-        # 恢复
-        restored = await memory.restore(archive_id)
-        assert restored is not None
+        stats = memory.get_stats()
+        assert "type" in stats

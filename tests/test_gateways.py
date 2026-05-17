@@ -2,222 +2,228 @@
 网关层测试（多通道集成测试）
 """
 import pytest
-import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 
 
 class TestGatewayManager:
     """网关管理器测试"""
-    
-    @pytest.mark.asyncio
-    async def test_register_adapter(self):
-        """测试注册适配器"""
+
+    def test_create_manager(self):
+        """测试创建管理器"""
         from gateways import GatewayManager
-        
+
         manager = GatewayManager()
-        
-        # 创建模拟适配器
-        adapter = Mock()
-        adapter.platform = "test_platform"
-        
-        # 注册
-        manager.register_adapter(adapter)
-        
-        # 验证
-        assert adapter in manager._adapters.values()
-    
-    @pytest.mark.asyncio
-    async def test_get_adapter(self):
-        """测试获取适配器"""
+        assert manager is not None
+        assert isinstance(manager.adapters, dict)
+
+    def test_get_instance(self):
+        """测试单例获取"""
         from gateways import GatewayManager
-        
+
+        manager1 = GatewayManager.get_instance()
+        manager2 = GatewayManager.get_instance()
+        assert manager1 is manager2
+
+    def test_create_adapter_feishu(self):
+        """测试创建飞书适配器"""
+        from gateways import GatewayManager
+
         manager = GatewayManager()
-        
-        # 获取适配器
-        feishu = manager.get_adapter("feishu")
-        discord = manager.get_adapter("discord")
-        telegram = manager.get_adapter("telegram")
-        
-        # 验证（可能是None如果没有实现）
-        # assert feishu is not None or discord is not None or telegram is not None
+        adapter = manager._create_adapter("feishu", {"enabled": False})
+        assert adapter is not None
+
+    def test_create_adapter_discord(self):
+        """测试创建Discord适配器"""
+        from gateways import GatewayManager
+
+        manager = GatewayManager()
+        adapter = manager._create_adapter("discord", {"enabled": False})
+        assert adapter is not None
+
+    def test_create_adapter_telegram(self):
+        """测试创建Telegram适配器"""
+        from gateways import GatewayManager
+
+        manager = GatewayManager()
+        adapter = manager._create_adapter("telegram", {"enabled": False})
+        assert adapter is not None
+
+    def test_create_adapter_unsupported(self):
+        """测试不支持的适配器"""
+        from gateways import GatewayManager
+
+        manager = GatewayManager()
+        adapter = manager._create_adapter("unsupported", {})
+        assert adapter is None
 
 
 class TestFeishuAdapter:
     """飞书适配器测试"""
-    
-    @pytest.mark.asyncio
-    async def test_send_message(self):
-        """测试发送消息"""
+
+    def test_create_adapter(self):
+        """测试创建适配器"""
         from gateways.feishu_adapter import FeishuAdapter
-        
-        adapter = FeishuAdapter(app_id="test", app_secret="test")
-        
-        # 模拟发送（实际需要飞书API）
-        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = Mock(status_code=200, json=lambda: {"code": 0})
-            
-            # 发送消息
-            result = await adapter.send_message(
-                channel_id="test_channel",
-                content="测试消息"
-            )
-            
-            assert result is not None
-    
+
+        adapter = FeishuAdapter(config={"app_id": "test", "app_secret": "test", "enabled": False})
+        assert adapter is not None
+        assert adapter.platform_name == "feishu"
+
     @pytest.mark.asyncio
-    async def test_parse_webhook_event(self):
-        """测试解析Webhook事件"""
+    async def test_health_check(self):
+        """测试健康检查"""
         from gateways.feishu_adapter import FeishuAdapter
-        
-        adapter = FeishuAdapter(app_id="test", app_secret="test")
-        
-        # 模拟事件
-        event = {
-            "schema": "2.0",
-            "event": {
-                "message": [
-                    {"message_id": "msg_123", "text": "你好"}
-                ]
-            }
-        }
-        
-        # 解析
-        parsed = adapter.parse_webhook_event(event)
-        
-        assert parsed is not None
+
+        adapter = FeishuAdapter(config={"app_id": "test", "app_secret": "test", "enabled": False})
+        health = await adapter.health_check()
+        assert "platform" in health
 
 
 class TestDiscordAdapter:
     """Discord适配器测试"""
-    
-    @pytest.mark.asyncio
-    async def test_send_message(self):
-        """测试发送消息"""
+
+    def test_create_adapter(self):
+        """测试创建适配器"""
         from gateways.discord_adapter import DiscordAdapter
-        
-        adapter = DiscordAdapter(bot_token="test_token")
-        
-        # 模拟发送
-        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = Mock(status_code=200)
-            
-            # 发送消息
-            result = await adapter.send_message(
-                channel_id="123",
-                content="测试消息"
-            )
-            
-            assert result is True
-    
+
+        adapter = DiscordAdapter(config={"bot_token": "test_token", "enabled": False})
+        assert adapter is not None
+        assert adapter.platform_name == "discord"
+
     @pytest.mark.asyncio
-    async def test_parse_interaction(self):
-        """测试解析交互"""
+    async def test_health_check(self):
+        """测试健康检查"""
         from gateways.discord_adapter import DiscordAdapter
-        
-        adapter = DiscordAdapter(bot_token="test")
-        
-        # 模拟交互
-        interaction = {
-            "type": 2,  #APPLICATION_COMMAND
-            "data": {"name": "test_command"}
-        }
-        
-        # 解析
-        parsed = adapter.parse_interaction(interaction)
-        
-        assert parsed is not None
+
+        adapter = DiscordAdapter(config={"bot_token": "test", "enabled": False})
+        health = await adapter.health_check()
+        assert "platform" in health
 
 
 class TestTelegramAdapter:
     """Telegram适配器测试"""
-    
-    @pytest.mark.asyncio
-    async def test_send_message(self):
-        """测试发送消息"""
+
+    def test_create_adapter(self):
+        """测试创建适配器"""
         from gateways.telegram_adapter import TelegramAdapter
-        
-        adapter = TelegramAdapter(bot_token="test_token")
-        
-        # 模拟发送
-        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = Mock(status_code=200, json=lambda: {"ok": True})
-            
-            # 发送消息
-            result = await adapter.send_message(
-                chat_id="123456",
-                text="测试消息"
-            )
-            
-            assert result is True
-    
+
+        adapter = TelegramAdapter(config={"bot_token": "test_token", "enabled": False})
+        assert adapter is not None
+        assert adapter.platform_name == "telegram"
+
     @pytest.mark.asyncio
-    async def test_parse_update(self):
-        """测试解析更新"""
+    async def test_health_check(self):
+        """测试健康检查"""
         from gateways.telegram_adapter import TelegramAdapter
-        
-        adapter = TelegramAdapter(bot_token="test")
-        
-        # 模拟更新
-        update = {
-            "message": {
-                "chat": {"id": 123456},
-                "text": "/start"
-            }
-        }
-        
-        # 解析
-        parsed = adapter.parse_update(update)
-        
-        assert parsed is not None
+
+        adapter = TelegramAdapter(config={"bot_token": "test", "enabled": False})
+        health = await adapter.health_check()
+        assert "platform" in health
 
 
 class TestMessageRouter:
     """消息路由器测试"""
-    
+
+    def test_create_router(self):
+        """测试创建路由器"""
+        from gateways.message_router import MessageRouter
+
+        router = MessageRouter()
+        assert router is not None
+
+    def test_register_handler(self):
+        """测试注册处理器"""
+        from gateways.message_router import MessageRouter
+
+        router = MessageRouter()
+
+        async def handler(msg):
+            return None
+
+        router.register_handler("test_platform", handler)
+        assert "test_platform" in router.handlers
+
+    def test_set_fallback_handler(self):
+        """测试设置默认处理器"""
+        from gateways.message_router import MessageRouter
+
+        router = MessageRouter()
+
+        async def fallback(msg):
+            return None
+
+        router.set_fallback_handler(fallback)
+        assert router.fallback_handler is not None
+
     @pytest.mark.asyncio
     async def test_route_message(self):
         """测试消息路由"""
         from gateways.message_router import MessageRouter
-        
+        from gateways import Message
+
         router = MessageRouter()
-        
-        # 路由消息
-        result = await router.route_message(
-            platform="test",
-            message={"text": "test"},
-            session_id="test_session"
+        routed = []
+
+        async def handler(msg):
+            routed.append(msg)
+            from gateways import Response
+            return Response(message="ok")
+
+        router.register_handler("test", handler)
+
+        msg = Message(
+            msg_id="1", platform="test", msg_type="text",
+            content="hello", sender={"id": "u1"}
         )
-        
+        result = await router.route(msg)
         assert result is not None
-    
+        assert len(routed) == 1
+
     @pytest.mark.asyncio
-    async def test_get_session(self):
-        """测试获取会话"""
+    async def test_route_no_handler(self):
+        """测试无处理器时的路由"""
         from gateways.message_router import MessageRouter
-        
+        from gateways import Message
+
         router = MessageRouter()
-        
-        # 创建会话
-        session_id = await router.create_session(
-            platform="test",
-            user_id="user_123"
+
+        msg = Message(
+            msg_id="1", platform="unknown", msg_type="text",
+            content="hello", sender={"id": "u1"}
         )
-        
-        assert session_id is not None
-    
-    @pytest.mark.asyncio
-    async def test_cross_platform_reply(self):
-        """测试跨平台回复"""
-        from gateways.message_router import MessageRouter
-        
-        router = MessageRouter()
-        
-        # 跨平台回复
-        result = await router.cross_platform_reply(
-            original_platform="telegram",
-            original_message={"text": "test"},
-            reply_platform="discord",
-            reply_content="回复"
+        result = await router.route(msg)
+        assert result is None
+
+
+class TestGatewayMessages:
+    """网关消息模型测试"""
+
+    def test_message_creation(self):
+        """测试消息创建"""
+        from gateways import Message
+
+        msg = Message(
+            msg_id="1", platform="test", msg_type="text",
+            content="hello", sender={"id": "u1"}
         )
-        
-        assert isinstance(result, dict)
+        assert msg.msg_id == "1"
+        assert msg.content == "hello"
+
+    def test_message_to_dict(self):
+        """测试消息转字典"""
+        from gateways import Message
+
+        msg = Message(
+            msg_id="1", platform="test", msg_type="text",
+            content="hello", sender={"id": "u1"}
+        )
+        d = msg.to_dict()
+        assert "msg_id" in d
+        assert "content" in d
+
+    def test_response_creation(self):
+        """测试响应创建"""
+        from gateways import Response
+
+        resp = Response(message="test reply")
+        assert resp.message == "test reply"
+        assert resp.msg_type == "text"

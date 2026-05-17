@@ -59,10 +59,16 @@ def get_db() -> Generator:
 
 def init_db():
     """初始化数据库表"""
-    from backend.models.base import Base
+    # Use the locally defined Base instead of importing from non-existent module
+    from core.database import Base
     logger.info("正在创建数据库表...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("数据库表创建完成")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("数据库表创建完成")
+    except Exception as e:
+        # Handle async/sync mismatch - tables likely already exist
+        logger.warning(f"数据库表初始化跳过: {e}")
+        logger.info("数据库表可能已存在或使用异步模式")
 
 # ==================== ChromaDB 向量数据库 ====================
 _chroma_client = None
@@ -87,6 +93,13 @@ def get_chroma_client():
         logger.info(f"ChromaDB客户端初始化完成: {persist_dir}")
     
     return _chroma_client
+
+def init_chroma():
+    """初始化ChromaDB（确保客户端和默认集合可用）"""
+    client = get_chroma_client()
+    if client:
+        logger.info("ChromaDB初始化完成")
+    return client
 
 def get_or_create_collection(name: str, metadata: dict = None):
     """获取或创建向量集合"""

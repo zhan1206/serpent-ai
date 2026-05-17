@@ -42,6 +42,10 @@ class LongTermMemory:
             try:
                 self.driver = get_neo4j_driver()
                 
+                if self.driver is None:
+                    logger.warning("Neo4j不可用，长期记忆功能受限")
+                    return
+                
                 # 初始化约束
                 init_neo4j_constraints()
                 
@@ -51,6 +55,11 @@ class LongTermMemory:
                 logger.error(f"Neo4j连接失败: {e}")
                 raise
     
+    def _is_available(self) -> bool:
+        """检查Neo4j是否可用"""
+        self._ensure_connected()
+        return self.driver is not None
+
     def _generate_memory_id(self, session_id: str, content: str) -> str:
         """
         生成唯一的记忆ID
@@ -86,7 +95,8 @@ class LongTermMemory:
         Returns:
             Optional[str]: 记忆ID，如果失败则返回None
         """
-        self._ensure_connected()
+        if not self._is_available():
+            return None
         
         with self._lock:
             try:
@@ -149,7 +159,7 @@ class LongTermMemory:
         Returns:
             List[Dict]: 记忆列表
         """
-        self._ensure_connected()
+        if not self._is_available(): return []
         
         with self._lock:
             try:
@@ -218,7 +228,7 @@ class LongTermMemory:
         Returns:
             List[Dict]: 记忆列表
         """
-        self._ensure_connected()
+        if not self._is_available(): return []
         
         with self._lock:
             try:
@@ -279,7 +289,7 @@ class LongTermMemory:
         Returns:
             bool: 更新是否成功
         """
-        self._ensure_connected()
+        if not self._is_available(): return []
         
         with self._lock:
             try:
@@ -306,7 +316,7 @@ class LongTermMemory:
                 set_str = "SET " + ", ".join(set_clauses)
                 
                 cypher_query = f"""
-                MATCH (m:Memory {{id: $memory_id}}})
+                MATCH (m:Memory {{id: $memory_id}})
                 {set_str}
                 RETURN m
                 """
@@ -335,7 +345,7 @@ class LongTermMemory:
         Returns:
             bool: 删除是否成功
         """
-        self._ensure_connected()
+        if not self._is_available(): return []
         
         with self._lock:
             try:
@@ -370,7 +380,7 @@ class LongTermMemory:
         Returns:
             int: 删除的记忆数量
         """
-        self._ensure_connected()
+        if not self._is_available(): return []
         
         with self._lock:
             try:
@@ -399,7 +409,7 @@ class LongTermMemory:
         Returns:
             int: 删除的记忆总数
         """
-        self._ensure_connected()
+        if not self._is_available(): return []
         
         with self._lock:
             try:
@@ -428,7 +438,7 @@ class LongTermMemory:
         Returns:
             Dict: 统计信息
         """
-        self._ensure_connected()
+        if not self._is_available(): return dict(type="long_term", available=False)
         
         try:
             with self.driver.session() as session:

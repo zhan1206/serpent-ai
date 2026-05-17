@@ -4,5 +4,13 @@ SerpentAI Tool Integration Layer
 """
 
 from .mcp_client import MCPClient, MCPError
+from .tool_registry import ToolRegistry, get_global_registry
+from .tool_precompiler import ToolPrecompiler, get_global_precompiler
+from .tool_distiller import ToolDistiller, get_global_distiller
 
-__all__ = ['MCPClient', 'MCPError']
+__all__ = [
+    'MCPClient', 'MCPError',
+    'ToolRegistry', 'get_global_registry',
+    'ToolPrecompiler', 'get_global_precompiler',
+    'ToolDistiller', 'get_global_distiller'
+]

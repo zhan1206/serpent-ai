@@ -354,3 +354,33 @@ def verify_data_integrity(data: Union[str, bytes], expected_hash: str) -> bool:
     """
     actual_hash = EncryptionManager.hash_sha256(data)
     return actual_hash == expected_hash
+
+
+def generate_key() -> bytes:
+    """生成Fernet对称加密密钥"""
+    return Fernet.generate_key()
+
+
+def encrypt(data: Union[str, bytes]) -> bytes:
+    """快捷加密（对称）"""
+    return encryption_manager.encrypt_symmetric(data)
+
+
+def decrypt(encrypted_data: bytes) -> bytes:
+    """快捷解密（对称）"""
+    return encryption_manager.decrypt_symmetric(encrypted_data)
+
+
+def generate_token(data: Union[str, bytes]) -> str:
+    """生成Token（加密后base64编码）"""
+    encrypted = encryption_manager.encrypt_symmetric(data)
+    return base64.urlsafe_b64encode(encrypted).decode('utf-8')
+
+
+def verify_token(token: str) -> Optional[bytes]:
+    """验证并解密Token"""
+    try:
+        encrypted = base64.urlsafe_b64decode(token.encode('utf-8'))
+        return encryption_manager.decrypt_symmetric(encrypted)
+    except Exception:
+        return None
