@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     # 记忆系统配置
     VECTOR_DIMENSION: int = 384  # sentence-transformers维度
     SIMILARITY_THRESHOLD: float = 0.7
+    MAX_INSTANT_MEMORIES: int = 10   # 瞬时记忆最大消息数
     MAX_SHORT_TERM_MEMORIES: int = 1000
     MAX_LONG_TERM_MEMORIES: int = 10000
     

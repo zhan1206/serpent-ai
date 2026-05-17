@@ -26,6 +26,7 @@ from tools.builtin_tools import register_all_builtin_tools
 from routes.efficiency import router as efficiency_router
 from routes.gateway import router as gateway_router
 from routes.web import router as web_router
+from routes.agent import router as agent_router  # Agent API routes
 from gateways import get_gateway_manager, get_message_router
 
 # 导入效率引擎
@@ -116,6 +117,7 @@ app = FastAPI(
 app.include_router(efficiency_router)
 app.include_router(gateway_router)
 app.include_router(web_router)
+app.include_router(agent_router)  # Agent API routes
 
 # ==================== 中间件配置 ====================
 
