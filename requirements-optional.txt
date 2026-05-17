@@ -1,0 +1,16 @@
+# SerpentAI Optional Dependencies (not installed by CI)
+# Vector database for long-term memory
+chromadb>=0.4
+
+# Graph database (optional)
+# neo4j>=5.0
+
+# ONNX runtime for model optimization
+onnxruntime>=1.16
+
+# Kubernetes client (optional)
+kubernetes>=28.0
+
+# HuggingFace (optional)
+tokenizers>=0.15
+huggingface-hub>=0.20
