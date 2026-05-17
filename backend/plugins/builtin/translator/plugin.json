@@ -1,0 +1,17 @@
+{
+  "name": "translator",
+  "version": "1.0.0",
+  "type": "tool",
+  "description": "多语言翻译工具",
+  "entry_point": "translator_plugin.py",
+  "permissions": [
+    "network"
+  ],
+  "tags": [
+    "翻译"
+  ],
+  "icon": "🌐",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "dependencies": {}
+}

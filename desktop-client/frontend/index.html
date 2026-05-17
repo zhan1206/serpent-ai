@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SerpentAI</title>
+  <link rel="stylesheet" href="src/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="titlebar">
+      <div class="titlebar-drag">
+        <div class="titlebar-logo">&#x1F40D; SerpentAI</div>
+      </div>
+      <div class="titlebar-controls">
+        <button class="tb-btn" id="btnMinimize" aria-label="Minimize">&#x2500;</button>
+        <button class="tb-btn" id="btnMaximize" aria-label="Maximize">&#x25A1;</button>
+        <button class="tb-btn tb-close" id="btnClose" aria-label="Close">&#x2715;</button>
+      </div>
+    </div>
+    <div id="main-layout">
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <button class="btn-primary" id="btnNewChat">+ New Chat</button>
+        </div>
+        <div id="chatList" class="chat-list"></div>
+        <div class="sidebar-footer">
+          <button class="sidebar-btn" id="btnStatus">&#x1F4CA; Status</button>
+          <button class="sidebar-btn" id="btnTools">&#x1F527; Tools</button>
+          <button class="sidebar-btn" id="btnSettings">&#x2699;&#xFE0F; Settings</button>
+        </div>
+      </aside>
+      <main id="content">
+        <div id="chatArea">
+          <div id="chatMessages"></div>
+          <div id="inputArea">
+            <div class="input-wrapper">
+              <textarea id="messageInput" placeholder="Type a message... (Ctrl+Enter to send)" rows="1"></textarea>
+              <button class="voice-btn" id="btnVoice" title="Voice Input (Ctrl+Shift+S)">&#x1F3A4;</button>
+              <button class="send-btn" id="btnSend">Send</button>
+            </div>
+            <div class="input-footer">
+              <span id="tokenInfo">Ready</span>
+              <span id="modelInfo">Model: gpt-4o</span>
+            </div>
+          </div>
+        </div>
+        <div id="panelOverlay" class="panel hidden">
+          <div class="panel-header">
+            <h3 id="panelTitle"></h3>
+            <button class="panel-close" id="btnPanelClose">&#x2715;</button>
+          </div>
+          <div id="panelContent" class="panel-body"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="src/components/sidebar.js"></script>
+  <script src="src/components/chat.js"></script>
+  <script src="src/components/settings.js"></script>
+  <script src="src/components/tools.js"></script>
+  <script src="src/components/status.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>

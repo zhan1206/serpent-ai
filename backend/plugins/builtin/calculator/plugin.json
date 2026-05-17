@@ -1,0 +1,16 @@
+{
+  "name": "calculator",
+  "version": "1.0.0",
+  "type": "tool",
+  "description": "高级科学计算器，支持数学表达式计算和单位转换",
+  "entry_point": "calculator_plugin.py",
+  "permissions": [],
+  "tags": [
+    "计算器",
+    "数学"
+  ],
+  "icon": "🧮",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "dependencies": {}
+}

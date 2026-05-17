@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SerpentAI">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%8D%3C/text%3E%3C/svg%3E">
+    <title>SerpentAI</title>
+    <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+    <div id="app">
+        <header class="app-header">
+            <div class="header-left">
+                <span class="logo">&#x1F40D;</span>
+                <h1 class="header-title">SerpentAI</h1>
+            </div>
+            <div class="header-right">
+                <button id="btn-theme" class="icon-btn" aria-label="切换主题">
+                    <span class="theme-icon">&#x1F319;</span>
+                </button>
+                <button id="btn-menu" class="icon-btn" aria-label="更多选项">
+                    <span>&#x22EE;</span>
+                </button>
+            </div>
+        </header>
+        <main class="app-content">
+            <div id="view-container"></div>
+        </main>
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-view="chat">
+                <span class="nav-icon">&#x1F4AC;</span>
+                <span class="nav-label">聊天</span>
+            </button>
+            <button class="nav-item" data-view="voice">
+                <span class="nav-icon">&#x1F3A4;</span>
+                <span class="nav-label">语音</span>
+            </button>
+            <button class="nav-item" data-view="skills">
+                <span class="nav-icon">&#x1F9E9;</span>
+                <span class="nav-label">技能</span>
+            </button>
+            <button class="nav-item" data-view="settings">
+                <span class="nav-icon">&#x2699;&#xFE0F;</span>
+                <span class="nav-label">设置</span>
+            </button>
+        </nav>
+    </div>
+    <div id="install-banner" class="install-banner hidden">
+        <span>&#x1F40D; 将 SerpentAI 添加到主屏幕</span>
+        <button id="btn-install" class="install-btn">安装</button>
+        <button id="btn-install-dismiss" class="install-dismiss">&times;</button>
+    </div>
+    <script src="src/components/MessageBubble.js"></script>
+    <script src="src/components/VoiceButton.js"></script>
+    <script src="src/components/ChatView.js"></script>
+    <script src="src/components/VoiceView.js"></script>
+    <script src="src/components/SkillsView.js"></script>
+    <script src="src/components/SettingsView.js"></script>
+    <script src="src/app.js"></script>
+</body>
+</html>

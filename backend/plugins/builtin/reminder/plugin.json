@@ -1,0 +1,15 @@
+{
+  "name": "reminder",
+  "version": "1.0.0",
+  "type": "tool",
+  "description": "提醒和定时任务管理",
+  "entry_point": "reminder_plugin.py",
+  "permissions": [],
+  "tags": [
+    "提醒"
+  ],
+  "icon": "⏰",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "dependencies": {}
+}

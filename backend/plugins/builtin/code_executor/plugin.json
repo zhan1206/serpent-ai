@@ -1,0 +1,17 @@
+{
+  "name": "code_executor",
+  "version": "1.0.0",
+  "type": "tool",
+  "description": "安全代码执行工具，支持 Python 和 JavaScript",
+  "entry_point": "code_executor_plugin.py",
+  "permissions": [
+    "shell"
+  ],
+  "tags": [
+    "代码"
+  ],
+  "icon": "💻",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "dependencies": {}
+}

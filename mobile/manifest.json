@@ -1,0 +1,39 @@
+{
+    "name": "SerpentAI",
+    "short_name": "SerpentAI",
+    "description": "终极自托管全功能AI智能体 - 移动端",
+    "start_url": "/mobile/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#1a1a2e",
+    "orientation": "portrait",
+    "scope": "/mobile/",
+    "lang": "zh-CN",
+    "categories": ["productivity", "utilities"],
+    "icons": [
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%231a1a2e'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='120'%3E%F0%9F%90%8D%3C/text%3E%3C/svg%3E",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='64' fill='%231a1a2e'/%3E%3Ctext x='256' y='360' text-anchor='middle' font-size='320'%3E%F0%9F%90%8D%3C/text%3E%3C/svg%3E",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "新对话",
+            "short_name": "对话",
+            "url": "/mobile/#chat",
+            "icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ctext y='.9em' font-size='80'%3E%F0%9F%92%AC%3C/text%3E%3C/svg%3E", "sizes": "96x96", "type": "image/svg+xml"}]
+        },
+        {
+            "name": "语音输入",
+            "short_name": "语音",
+            "url": "/mobile/#voice",
+            "icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ctext y='.9em' font-size='80'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E", "sizes": "96x96", "type": "image/svg+xml"}]
+        }
+    ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "web_researcher",
+  "version": "1.0.0",
+  "display_name": "网页研究员",
+  "description": "深度网页研究技能，自动搜索、整理和分析互联网信息，生成结构化研究报告",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "category": "research",
+  "tags": [
+    "搜索",
+    "研究",
+    "互联网",
+    "信息收集",
+    "报告"
+  ],
+  "icon": "🔍",
+  "tools": [
+    "web_search",
+    "calculator",
+    "translate"
+  ],
+  "required_plugins": [],
+  "prompt_template": "你是一位专业的研究分析师。使用 web_search 工具搜索信息，整理成结构化报告。",
+  "examples": [
+    {
+      "input": "研究2024年AI市场",
+      "output": "搜索并整理报告"
+    }
+  ],
+  "min_serpentai_version": "0.1.0"
+}

@@ -1,0 +1,31 @@
+{
+  "name": "code_assistant",
+  "version": "1.0.0",
+  "display_name": "编程助手",
+  "description": "编程辅助技能，支持代码编写、调试、审查和优化",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "category": "coding",
+  "tags": [
+    "编程",
+    "代码",
+    "调试",
+    "Python",
+    "JavaScript"
+  ],
+  "icon": "💻",
+  "tools": [
+    "execute_python",
+    "execute_javascript",
+    "calculator"
+  ],
+  "required_plugins": [],
+  "prompt_template": "你是一位全栈编程专家。帮助用户解决编程问题，使用 execute_python/execute_javascript 验证代码。",
+  "examples": [
+    {
+      "input": "实现LRU缓存",
+      "output": "使用OrderedDict实现"
+    }
+  ],
+  "min_serpentai_version": "0.1.0"
+}

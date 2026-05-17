@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SerpentAI 工作流编辑器</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f1e; color: #e0e0e0; height: 100vh; overflow: hidden; }
+        
+        /* 布局 */
+        .app { display: flex; flex-direction: column; height: 100vh; }
+        .header { background: #1a1a2e; padding: 12px 20px; border-bottom: 1px solid #2a2a4a; display: flex; align-items: center; gap: 16px; }
+        .header h1 { font-size: 18px; color: #00d4ff; }
+        .header .logo { font-size: 24px; margin-right: 8px; }
+        
+        .toolbar { display: flex; gap: 8px; }
+        .toolbar button { background: #2a2a4a; border: 1px solid #3a3a5a; color: #e0e0e0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .toolbar button:hover { background: #3a3a5a; border-color: #00d4ff; }
+        .toolbar button.primary { background: #00d4ff; color: #0a0a1e; border-color: #00d4ff; font-weight: 600; }
+        .toolbar button.primary:hover { background: #00b8e6; }
+        .toolbar button.danger { background: #ff4757; border-color: #ff4757; color: white; }
+        
+        .main { display: flex; flex: 1; overflow: hidden; }
+        
+        /* 左侧面板 - 节点类型 */
+        .sidebar { width: 220px; background: #1a1a2e; border-right: 1px solid #2a2a4a; padding: 16px; overflow-y: auto; }
+        .sidebar h3 { font-size: 12px; text-transform: uppercase; color: #888; margin-bottom: 12px; letter-spacing: 1px; }
+        .node-palette { display: flex; flex-direction: column; gap: 6px; }
+        .palette-item { background: #252540; border: 1px solid #3a3a5a; border-radius: 6px; padding: 10px 12px; cursor: grab; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: all 0.2s; user-select: none; }
+        .palette-item:hover { background: #2a2a5a; border-color: #00d4ff; transform: translateX(2px); }
+        .palette-item .icon { font-size: 16px; }
+        .palette-item .type { color: #888; font-size: 11px; margin-left: auto; }
+        
+        /* 中间 - 画布 */
+        .canvas-container { flex: 1; position: relative; overflow: hidden; background: #0f0f1e; }
+        .canvas { width: 100%; height: 100%; position: relative; overflow: auto; }
+        .canvas-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, #2a2a4a 1px, transparent 1px); background-size: 20px 20px; min-width: 3000px; min-height: 2000px; }
+        
+        /* 节点 */
+        .workflow-node { position: absolute; background: #1e1e3a; border: 2px solid #3a3a6a; border-radius: 10px; padding: 0; min-width: 140px; cursor: move; transition: border-color 0.2s, box-shadow 0.2s; font-size: 12px; }
+        .workflow-node:hover { border-color: #00d4ff; box-shadow: 0 0 15px rgba(0, 212, 255, 0.3); }
+        .workflow-node.selected { border-color: #ff6b6b; box-shadow: 0 0 20px rgba(255, 107, 107, 0.4); }
+        .workflow-node.running { border-color: #ffd93d; animation: pulse 1s infinite; }
+        .workflow-node.completed { border-color: #6bcb77; }
+        .workflow-node.failed { border-color: #ff4757; }
+        
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 5px rgba(255, 217, 61, 0.5); } 50% { box-shadow: 0 0 20px rgba(255, 217, 61, 0.8); } }
+        
+        .node-header { background: #2a2a5a; padding: 8px 12px; border-radius: 8px 8px 0 0; display: flex; align-items: center; gap: 8px; }
+        .node-icon { font-size: 16px; }
+        .node-title { flex: 1; font-weight: 600; color: #fff; font-size: 13px; }
+        .node-type { font-size: 10px; color: #888; background: #1a1a3a; padding: 2px 6px; border-radius: 3px; }
+        
+        .node-body { padding: 10px 12px; }
+        .node-config { font-size: 11px; color: #aaa; }
+        .node-status { margin-top: 6px; font-size: 10px; padding: 3px 8px; border-radius: 3px; display: inline-block; }
+        .node-status.pending { background: #3a3a5a; color: #888; }
+        .node-status.running { background: #ffd93d; color: #000; }
+        .node-status.completed { background: #6bcb77; color: #000; }
+        .node-status.failed { background: #ff4757; color: #fff; }
+        
+        /* 节点类型颜色 */
+        .node-start .node-header { background: #1a3a2a; border-bottom: 2px solid #6bcb77; }
+        .node-end .node-header { background: #3a1a1a; border-bottom: 2px solid #ff4757; }
+        .node-agent .node-header { background: #1a2a3a; border-bottom: 2px solid #4dabf7; }
+        .node-tool_call .node-header { background: #2a2a1a; border-bottom: 2px solid #ffd93d; }
+        .node-condition .node-header { background: #2a1a2a; border-bottom: 2px solid #da77f2; }
+        .node-trigger .node-header { background: #1a1a2a; border-bottom: 2px solid #00d4ff; }
+        
+        /* 连接线 */
+        .connections { position: absolute; top: 0; left: 0; pointer-events: none; }
+        .connection { stroke: #3a3a6a; stroke-width: 2; fill: none; }
+        .connection:hover { stroke: #00d4ff; stroke-width: 3; }
+        .connection.selected { stroke: #ff6b6b; }
+        
+        /* 右侧面板 - 属性 */
+        .properties { width: 280px; background: #1a1a2e; border-left: 1px solid #2a2a4a; padding: 16px; overflow-y: auto; }
+        .properties h3 { font-size: 14px; color: #00d4ff; margin-bottom: 16px; }
+        .prop-group { margin-bottom: 16px; }
+        .prop-group label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .prop-group input, .prop-group select, .prop-group textarea { width: 100%; background: #252540; border: 1px solid #3a3a5a; border-radius: 6px; padding: 8px 10px; color: #e0e0e0; font-size: 13px; outline: none; }
+        .prop-group input:focus, .prop-group select:focus, .prop-group textarea:focus { border-color: #00d4ff; }
+        .prop-group textarea { min-height: 80px; resize: vertical; font-family: monospace; }
+        .prop-row { display: flex; gap: 8px; }
+        .prop-row .prop-group { flex: 1; }
+        
+        .no-selection { color: #555; text-align: center; padding: 40px 20px; font-size: 13px; line-height: 1.6; }
+        
+        /* 模板弹窗 */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal { background: #1a1a2e; border: 1px solid #3a3a5a; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal h2 { color: #00d4ff; margin-bottom: 16px; font-size: 18px; }
+        .template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .template-card { background: #252540; border: 1px solid #3a3a5a; border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.2s; }
+        .template-card:hover { border-color: #00d4ff; transform: translateY(-2px); }
+        .template-card h4 { color: #fff; margin-bottom: 6px; }
+        .template-card p { color: #888; font-size: 12px; line-height: 1.4; }
+        .template-card .category { display: inline-block; background: #00d4ff; color: #0a0a1e; font-size: 10px; padding: 2px 8px; border-radius: 3px; margin-bottom: 8px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+        
+        /* 执行结果 */
+        .exec-result { background: #0a0a1e; border: 1px solid #3a3a5a; border-radius: 8px; padding: 16px; margin-top: 16px; max-height: 300px; overflow-y: auto; }
+        .exec-result pre { font-family: 'Fira Code', monospace; font-size: 11px; color: #aaa; white-space: pre-wrap; word-break: break-all; }
+        
+        /* Toast */
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #2a2a4a; border: 1px solid #3a3a5a; border-radius: 8px; padding: 12px 20px; font-size: 13px; z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.success { border-color: #6bcb77; background: #1a3a2a; }
+        .toast.error { border-color: #ff4757; background: #3a1a1a; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* 右键菜单 */
+        .context-menu { position: fixed; background: #1a1a2e; border: 1px solid #3a3a5a; border-radius: 8px; padding: 4px; z-index: 1000; min-width: 150px; }
+        .context-menu-item { padding: 8px 16px; cursor: pointer; border-radius: 4px; font-size: 13px; }
+        .context-menu-item:hover { background: #2a2a5a; }
+        .context-menu-item.danger:hover { background: #3a1a1a; color: #ff4757; }
+        
+        /* Mini-map */
+        .minimap { position: absolute; right: 16px; bottom: 16px; width: 160px; height: 100px; background: rgba(26,26,46,0.9); border: 1px solid #3a3a5a; border-radius: 8px; overflow: hidden; }
+        .minimap-content { width: 100%; height: 100%; position: relative; }
+        .minimap-node { position: absolute; background: #00d4ff; border-radius: 2px; opacity: 0.7; }
+        .minimap-viewport { position: absolute; border: 1px solid #ff6b6b; }
+        
+        /* 状态栏 */
+        .statusbar { background: #1a1a2e; border-top: 1px solid #2a2a4a; padding: 6px 20px; font-size: 11px; color: #666; display: flex; gap: 20px; }
+        .statusbar span { display: flex; align-items: center; gap: 4px; }
+        .statusbar .dot { width: 6px; height: 6px; border-radius: 50%; }
+        .dot.green { background: #6bcb77; }
+        .dot.yellow { background: #ffd93d; }
+        .dot.red { background: #ff4757; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="app">
+        <!-- Header -->
+        <div class="header">
+            <span class="logo">🐍</span>
+            <h1>SerpentAI 工作流编辑器</h1>
+            <div style="flex:1"></div>
+            <div class="toolbar">
+                <button @click="showTemplates = true">📋 模板</button>
+                <button @click="newWorkflow">✨ 新建</button>
+                <button @click="saveWorkflow" :disabled="!currentWorkflow">💾 保存</button>
+                <button class="primary" @click="executeWorkflow" :disabled="!currentWorkflow || workflowStatus === 'running'">
+                    ▶ {{ workflowStatus === 'running' ? '运行中...' : '执行' }}
+                </button>
+                <button @click="validateWorkflow" :disabled="!currentWorkflow">🔍 验证</button>
+                <button @click="clearCanvas">🗑️ 清空</button>
+            </div>
+        </div>
+        
+        <!-- Main -->
+        <div class="main">
+            <!-- Sidebar - Node Types -->
+            <div class="sidebar">
+                <h3>节点类型</h3>
+                <div class="node-palette">
+                    <div v-for="cat in nodeCategories" :key="cat.name">
+                        <div style="font-size:11px;color:#555;margin:10px 0 4px;">{{ cat.name }}</div>
+                        <div v-for="type in cat.types" :key="type.type" class="palette-item" draggable="true" @dragstart="onDragStart($event, type.type)" @dragend="onDragEnd">
+                            <span class="icon">{{ type.icon }}</span>
+                            <span>{{ type.name }}</span>
+                            <span class="type">{{ type.category }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Canvas -->
+            <div class="canvas-container" @drop="onDrop" @dragover.prevent @click.self="selectedNode = null">
+                <div class="canvas" ref="canvas" @mousedown="onCanvasMouseDown" @mousemove="onCanvasMouseMove" @mouseup="onCanvasMouseUp" @contextmenu.prevent="onContextMenu">
+                    <div class="canvas-bg"></div>
+                    
+                    <!-- SVG Connections -->
+                    <svg class="connections" :width="canvasWidth" :height="canvasHeight" :viewBox="`0 0 ${canvasWidth} ${canvasHeight}`">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#3a3a6a"/>
+                            </marker>
+                        </defs>
+                        <path v-for="edge in edges" :key="edge.id" 
+                            :d="getEdgePath(edge)" class="connection"
+                            :class="{selected: selectedEdge === edge.id}"
+                            @click.stop="selectedEdge = edge.id"
+                            marker-end="url(#arrowhead)"/>
+                        <!-- Drawing edge -->
+                        <path v-if="drawingEdge" :d="getDrawingPath()" class="connection" style="stroke-dasharray:5,5"/>
+                    </svg>
+                    
+                    <!-- Nodes -->
+                    <div v-for="node in nodes" :key="node.id"
+                        class="workflow-node"
+                        :class="['node-' + node.type, {selected: selectedNode === node.id, running: node.status === 'running', completed: node.status === 'completed', failed: node.status === 'failed'}]"
+                        :style="{left: node.position_x + 'px', top: node.position_y + 'px'}"
+                        @mousedown.stop="onNodeMouseDown($event, node)"
+                        @click.stop="selectedNode = node.id">
+                        <div class="node-header">
+                            <span class="node-icon">{{ getNodeIcon(node.type) }}</span>
+                            <span class="node-title">{{ node.name }}</span>
+                            <span class="node-type">{{ node.type }}</span>
+                        </div>
+                        <div class="node-body">
+                            <div class="node-config">{{ getNodeConfigSummary(node) }}</div>
+                            <div v-if="node.status" class="node-status" :class="node.status">{{ node.status }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mini-map -->
+                <div class="minimap" v-if="nodes.length > 0">
+                    <div class="minimap-content">
+                        <div v-for="node in nodes" :key="node.id" class="minimap-node" 
+                            :style="{left: (node.position_x / 30) + 'px', top: (node.position_y / 30) + 'px', width: '8px', height: '4px'}"/>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Properties Panel -->
+            <div class="properties">
+                <div v-if="!selectedNodeData">
+                    <div class="no-selection">
+                        <p>👈 从左侧拖拽节点到画布</p>
+                        <p style="margin-top:12px;color:#444;">或选择一个节点查看属性</p>
+                    </div>
+                </div>
+                <div v-else>
+                    <h3>节点属性</h3>
+                    <div class="prop-group">
+                        <label>名称</label>
+                        <input v-model="selectedNodeData.name" placeholder="节点名称" @input="updateNodeProperty('name', selectedNodeData.name)">
+                    </div>
+                    <div class="prop-group">
+                        <label>类型</label>
+                        <input :value="selectedNodeData.type" disabled>
+                    </div>
+                    <div class="prop-row">
+                        <div class="prop-group">
+                            <label>X 位置</label>
+                            <input type="number" v-model.number="selectedNodeData.position_x" @input="updateNodePosition">
+                        </div>
+                        <div class="prop-group">
+                            <label>Y 位置</label>
+                            <input type="number" v-model.number="selectedNodeData.position_y" @input="updateNodePosition">
+                        </div>
+                    </div>
+                    <div class="prop-group">
+                        <label>超时 (秒)</label>
+                        <input type="number" v-model.number="selectedNodeData.config.timeout" @input="updateNodeProperty('config', selectedNodeData.config)">
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'agent'">
+                        <label>模型</label>
+                        <select v-model="selectedNodeData.config.agent_model" @change="updateNodeProperty('config', selectedNodeData.config)">
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            <option value="claude-3">Claude 3</option>
+                            <option value="llama-3-8b">Llama 3 8B (本地)</option>
+                        </select>
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'agent'">
+                        <label>系统提示词</label>
+                        <textarea v-model="selectedNodeData.config.agent_system_prompt" @input="updateNodeProperty('config', selectedNodeData.config)" placeholder="你是一个有帮助的AI助手..."></textarea>
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'tool_call'">
+                        <label>工具名称</label>
+                        <input v-model="selectedNodeData.config.tool_name" placeholder="fs_read, shell_exec, etc." @input="updateNodeProperty('config', selectedNodeData.config)">
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'condition'">
+                        <label>条件表达式</label>
+                        <textarea v-model="selectedNodeData.config.condition_expression" @input="updateNodeProperty('config', selectedNodeData.config)" placeholder="result > 0"></textarea>
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'http'">
+                        <label>HTTP 方法</label>
+                        <select v-model="selectedNodeData.config.http_method">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'http'">
+                        <label>URL</label>
+                        <input v-model="selectedNodeData.config.http_url" placeholder="https://api.example.com/data">
+                    </div>
+                    <div class="prop-group" v-if="selectedNodeData.type === 'message'">
+                        <label>消息内容</label>
+                        <textarea v-model="selectedNodeData.config.message_content" placeholder="使用 {变量名} 引用上下文变量"></textarea>
+                    </div>
+                    <div style="margin-top:20px; display:flex; gap:8px;">
+                        <button class="danger" @click="deleteSelectedNode" style="flex:1">🗑️ 删除节点</button>
+                    </div>
+                </div>
+                
+                <!-- Workflow Info -->
+                <div v-if="currentWorkflow" style="margin-top:24px; padding-top:16px; border-top:1px solid #2a2a4a;">
+                    <h3>工作流信息</h3>
+                    <div style="font-size:12px;color:#888;line-height:1.8;">
+                        <div>名称: <span style="color:#e0e0e0">{{ currentWorkflow.name }}</span></div>
+                        <div>节点: <span style="color:#e0e0e0">{{ nodes.length }}</span></div>
+                        <div>连接: <span style="color:#e0e0e0">{{ edges.length }}</span></div>
+                        <div>状态: <span :style="{color: workflowStatus === 'active' ? '#6bcb77' : '#888'}">{{ workflowStatus }}</span></div>
+                    </div>
+                </div>
+                
+                <!-- Execution Result -->
+                <div v-if="execResult" class="exec-result">
+                    <div style="font-size:11px;color:#888;margin-bottom:8px;">执行结果</div>
+                    <pre>{{ JSON.stringify(execResult, null, 2) }}</pre>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="statusbar">
+            <span><span class="dot green"></span> API: localhost:8000</span>
+            <span><span class="dot green"></span> 工作流引擎</span>
+            <span>{{ nodes.length }} 节点 | {{ edges.length }} 连接</span>
+            <span v-if="selectedNodeData">选中: {{ selectedNodeData.name }}</span>
+        </div>
+    </div>
+    
+    <!-- Template Modal -->
+    <div class="modal-overlay" v-if="showTemplates" @click.self="showTemplates = false">
+        <div class="modal">
+            <h2>📋 选择模板</h2>
+            <div class="template-grid">
+                <div v-for="tpl in templates" :key="tpl.id" class="template-card" @click="createFromTemplate(tpl.id)">
+                    <div class="category">{{ tpl.category }}</div>
+                    <h4>{{ tpl.name }}</h4>
+                    <p>{{ tpl.description }}</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button @click="showTemplates = false">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Context Menu -->
+    <div class="context-menu" v-if="contextMenu" :style="{left: contextMenu.x + 'px', top: contextMenu.y + 'px'}">
+        <div class="context-menu-item" @click="copyNode">📋 复制</div>
+        <div class="context-menu-item" @click="pasteNode">📝 粘贴</div>
+        <div class="context-menu-item" @click="duplicateNode">🔗 复制节点</div>
+        <div class="context-menu-item danger" @click="deleteSelectedNode">🗑️ 删除</div>
+    </div>
+    
+    <!-- Toast -->
+    <div v-if="toast" class="toast" :class="toast.type">{{ toast.message }}</div>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const API = 'http://localhost:8000/api';
+        
+        // State
+        const currentWorkflow = ref(null);
+        const nodes = ref([]);
+        const edges = ref([]);
+        const selectedNode = ref(null);
+        const selectedEdge = ref(null);
+        const workflowStatus = ref('draft');
+        const execResult = ref(null);
+        const showTemplates = ref(false);
+        const templates = ref([]);
+        const toast = ref(null);
+        const canvas = ref(null);
+        
+        // Drawing state
+        const drawingEdge = ref(null);
+        const dragNode = ref(null);
+        const dragOffset = ref({ x: 0, y: 0 });
+        const canvasOffset = ref({ x: 0, y: 0 });
+        const canvasWidth = ref(3000);
+        const canvasHeight = ref(2000);
+        
+        // Context menu
+        const contextMenu = ref(null);
+        const clipboard = ref(null);
+        
+        // Node categories
+        const nodeCategories = [
+            { name: '触发器', types: [
+                { type: 'trigger', name: 'Webhook触发', icon: '⚡', category: 'trigger' },
+                { type: 'schedule', name: '定时触发', icon: '⏰', category: 'trigger' },
+            ]},
+            { name: '智能体', types: [
+                { type: 'agent', name: 'AI智能体', icon: '🤖', category: 'agent' },
+                { type: 'tool_call', name: '工具调用', icon: '🔧', category: 'agent' },
+                { type: 'condition', name: '条件分支', icon: '🔀', category: 'agent' },
+                { type: 'parallel', name: '并行执行', icon: '⚡', category: 'agent' },
+                { type: 'loop', name: '循环', icon: '🔁', category: 'agent' },
+            ]},
+            { name: '数据', types: [
+                { type: 'input', name: '输入', icon: '📥', category: 'data' },
+                { type: 'output', name: '输出', icon: '📤', category: 'data' },
+                { type: 'transform', name: '数据转换', icon: '🔄', category: 'data' },
+                { type: 'filter', name: '数据过滤', icon: '🔍', category: 'data' },
+            ]},
+            { name: '集成', types: [
+                { type: 'http', name: 'HTTP请求', icon: '🌐', category: 'integration' },
+                { type: 'database', name: '数据库', icon: '💾', category: 'integration' },
+                { type: 'message', name: '发送消息', icon: '💬', category: 'integration' },
+                { type: 'notification', name: '通知', icon: '🔔', category: 'integration' },
+                { type: 'email', name: '邮件', icon: '📧', category: 'integration' },
+            ]},
+            { name: '工具', types: [
+                { type: 'code', name: '代码执行', icon: '💻', category: 'tool' },
+                { type: 'template', name: '模板渲染', icon: '📝', category: 'tool' },
+                { type: 'math', name: '数学计算', icon: '🔢', category: 'tool' },
+            ]},
+            { name: '控制', types: [
+                { type: 'start', name: '开始', icon: '▶️', category: 'control' },
+                { type: 'end', name: '结束', icon: '⏹️', category: 'control' },
+                { type: 'log', name: '日志', icon: '📋', category: 'control' },
+            ]},
+        ];
+        
+        // Selected node data
+        const selectedNodeData = computed(() => {
+            if (!selectedNode.value) return null;
+            return nodes.value.find(n => n.id === selectedNode.value);
+        });
+        
+        // Methods
+        function showToast(message, type = 'success') {
+            toast.value = { message, type };
+            setTimeout(() => toast.value = null, 3000);
+        }
+        
+        async function loadTemplates() {
+            try {
+                const res = await axios.get(`${API}/workflow/templates`);
+                templates.value = res.data;
+            } catch (e) {
+                console.error('加载模板失败', e);
+            }
+        }
+        
+        async function createFromTemplate(templateId) {
+            try {
+                const res = await axios.post(`${API}/workflow/templates/${templateId}`);
+                currentWorkflow.value = res.data;
+                nodes.value = res.data.nodes.map(n => ({
+                    id: n.id,
+                    name: n.name,
+                    type: n.type,
+                    position_x: n.position?.x || 100,
+                    position_y: n.position?.y || 200,
+                    config: n.config || {},
+                    status: n.status || 'pending'
+                }));
+                edges.value = res.data.edges.map(e => ({
+                    id: e.id,
+                    source: e.source,
+                    target: e.target,
+                    source_port: e.sourcePort || 'out',
+                    target_port: e.targetPort || 'in',
+                    label: e.label || ''
+                }));
+                workflowStatus.value = 'draft';
+                execResult.value = null;
+                showTemplates.value = false;
+                showToast('模板创建成功');
+            } catch (e) {
+                showToast('模板创建失败', 'error');
+            }
+        }
+        
+        async function newWorkflow() {
+            try {
+                const res = await axios.post(`${API}/workflow`, {
+                    name: '未命名工作流',
+                    description: ''
+                });
+                currentWorkflow.value = res.data;
+                nodes.value = [];
+                edges.value = [];
+                workflowStatus.value = 'draft';
+                execResult.value = null;
+                showToast('新建工作流成功');
+            } catch (e) {
+                showToast('创建失败', 'error');
+            }
+        }
+        
+        async function saveWorkflow() {
+            if (!currentWorkflow.value) return;
+            try {
+                const workflowData = {
+                    ...currentWorkflow.value,
+                    nodes: nodes.value.map(n => ({
+                        id: n.id,
+                        name: n.name,
+                        type: n.type,
+                        position: { x: n.position_x, y: n.position_y },
+                        config: n.config
+                    })),
+                    edges: edges.value.map(e => ({
+                        id: e.id,
+                        source: e.source,
+                        target: e.target,
+                        sourcePort: e.source_port,
+                        targetPort: e.target_port
+                    }))
+                };
+                await axios.put(`${API}/workflow/${currentWorkflow.value.id}`, workflowData);
+                showToast('保存成功');
+            } catch (e) {
+                showToast('保存失败', 'error');
+            }
+        }
+        
+        async function executeWorkflow() {
+            if (!currentWorkflow.value) return;
+            try {
+                workflowStatus.value = 'running';
+                execResult.value = null;
+                
+                // Mark all nodes as running
+                nodes.value.forEach(n => n.status = 'running');
+                
+                const res = await axios.post(`${API}/workflow/execute`, {
+                    workflow_id: currentWorkflow.value.id,
+                    input_data: {}
+                });
+                
+                execResult.value = res.data;
+                
+                // Update node statuses
+                if (res.data.results) {
+                    for (const [nodeId, result] of Object.entries(res.data.results)) {
+                        const node = nodes.value.find(n => n.id === nodeId);
+                        if (node) {
+                            node.status = result?.error ? 'failed' : 'completed';
+                            if (result?.error) node.error = result.error;
+                        }
+                    }
+                }
+                
+                workflowStatus.value = res.data.status === 'completed' ? 'active' : 'failed';
+                showToast(res.data.status === 'completed' ? '执行成功' : '执行失败', res.data.status === 'completed' ? 'success' : 'error');
+            } catch (e) {
+                workflowStatus.value = 'failed';
+                showToast('执行失败', 'error');
+            }
+        }
+        
+        async function validateWorkflow() {
+            if (!currentWorkflow.value) return;
+            try {
+                const res = await axios.post(`${API}/workflow/${currentWorkflow.value.id}/validate`);
+                if (res.data.valid) {
+                    showToast('工作流验证通过');
+                } else {
+                    showToast('验证失败: ' + res.data.errors.join(', '), 'error');
+                }
+            } catch (e) {
+                showToast('验证失败', 'error');
+            }
+        }
+        
+        function clearCanvas() {
+            if (confirm('确定清空画布？')) {
+                nodes.value = [];
+                edges.value = [];
+                selectedNode.value = null;
+                selectedEdge.value = null;
+                execResult.value = null;
+                workflowStatus.value = 'draft';
+            }
+        }
+        
+        function onDragStart(e, type) {
+            e.dataTransfer.setData('nodeType', type);
+            e.dataTransfer.effectAllowed = 'copy';
+        }
+        
+        function onDrop(e) {
+            const type = e.dataTransfer.getData('nodeType');
+            if (!type) return;
+            
+            const rect = canvas.value.getBoundingClientRect();
+            const x = e.clientX - rect.left + canvas.value.scrollLeft;
+            const y = e.clientY - rect.top + canvas.value.scrollTop;
+            
+            const newNode = {
+                id: 'node_' + Date.now(),
+                name: getDefaultName(type),
+                type: type,
+                position_x: x,
+                position_y: y,
+                config: getDefaultConfig(type),
+                status: 'pending'
+            };
+            
+            nodes.value.push(newNode);
+            selectedNode.value = newNode.id;
+        }
+        
+        function getDefaultName(type) {
+            const names = {
+                start: '开始', end: '结束', agent: 'AI智能体', tool_call: '工具调用',
+                condition: '条件分支', parallel: '并行执行', loop: '循环',
+                input: '输入', output: '输出', transform: '数据转换', filter: '数据过滤',
+                http: 'HTTP请求', database: '数据库', message: '发送消息',
+                notification: '通知', email: '邮件', code: '代码执行',
+                template: '模板渲染', math: '数学计算', log: '日志',
+                trigger: '触发器', schedule: '定时器'
+            };
+            return names[type] || type;
+        }
+        
+        function getDefaultConfig(type) {
+            const configs = {
+                agent: { timeout: 30, agent_model: 'gpt-4', agent_temperature: 0.7, agent_system_prompt: '' },
+                tool_call: { timeout: 30, tool_name: '', tool_args: {} },
+                condition: { condition_expression: '' },
+                http: { http_method: 'GET', http_url: '', http_headers: {} },
+                message: { message_content: '' },
+                code: { code_language: 'python', code_content: '' },
+                template: { template_content: '' },
+                log: { message_content: '' }
+            };
+            return configs[type] || {};
+        }
+        
+        function onDragEnd() {}
+        
+        function onNodeMouseDown(e, node) {
+            selectedNode.value = node.id;
+            selectedEdge.value = null;
+            dragNode.value = node;
+            const rect = canvas.value.getBoundingClientRect();
+            dragOffset.value = {
+                x: e.clientX - rect.left - node.position_x,
+                y: e.clientY - rect.top - node.position_y
+            };
+        }
+        
+        function onCanvasMouseDown(e) {
+            selectedNode.value = null;
+            contextMenu.value = null;
+        }
+        
+        function onCanvasMouseMove(e) {
+            if (!dragNode.value) return;
+            const rect = canvas.value.getBoundingClientRect();
+            dragNode.value.position_x = Math.max(0, e.clientX - rect.left - dragOffset.value.x);
+            dragNode.value.position_y = Math.max(0, e.clientY - rect.top - dragOffset.value.y);
+        }
+        
+        function onCanvasMouseUp() {
+            dragNode.value = null;
+        }
+        
+        function onContextMenu(e) {
+            contextMenu.value = { x: e.clientX, y: e.clientY };
+        }
+        
+        function updateNodeProperty(prop, value) {
+            if (!selectedNodeData.value) return;
+            selectedNodeData.value[prop] = value;
+        }
+        
+        function updateNodePosition() {
+            // Position is already updated via v-model
+        }
+        
+        function deleteSelectedNode() {
+            if (!selectedNode.value) return;
+            nodes.value = nodes.value.filter(n => n.id !== selectedNode.value);
+            edges.value = edges.value.filter(e => e.source !== selectedNode.value && e.target !== selectedNode.value);
+            selectedNode.value = null;
+            contextMenu.value = null;
+        }
+        
+        function copyNode() {
+            if (selectedNodeData.value) {
+                clipboard.value = JSON.parse(JSON.stringify(selectedNodeData.value));
+            }
+            contextMenu.value = null;
+        }
+        
+        function pasteNode() {
+            if (!clipboard.value) return;
+            const newNode = {
+                ...JSON.parse(JSON.stringify(clipboard.value)),
+                id: 'node_' + Date.now(),
+                position_x: clipboard.value.position_x + 50,
+                position_y: clipboard.value.position_y + 50
+            };
+            nodes.value.push(newNode);
+            selectedNode.value = newNode.id;
+            contextMenu.value = null;
+        }
+        
+        function duplicateNode() {
+            copyNode();
+            pasteNode();
+        }
+        
+        function getNodeIcon(type) {
+            const icons = {
+                start: '▶️', end: '⏹️', agent: '🤖', tool_call: '🔧',
+                condition: '🔀', parallel: '⚡', loop: '🔁',
+                input: '📥', output: '📤', transform: '🔄', filter: '🔍',
+                http: '🌐', database: '💾', message: '💬',
+                notification: '🔔', email: '📧', code: '💻',
+                template: '📝', math: '🔢', log: '📋',
+                trigger: '⚡', schedule: '⏰'
+            };
+            return icons[type] || '📦';
+        }
+        
+        function getNodeConfigSummary(node) {
+            if (node.type === 'agent') return node.config?.agent_model || '';
+            if (node.type === 'tool_call') return node.config?.tool_name || '';
+            if (node.type === 'http') return `${node.config?.http_method || 'GET'} ${(node.config?.http_url || '').substring(0, 20)}...`;
+            return '';
+        }
+        
+        function getEdgePath(edge) {
+            const source = nodes.value.find(n => n.id === edge.source);
+            const target = nodes.value.find(n => n.id === edge.target);
+            if (!source || !target) return '';
+            
+            const sx = source.position_x + 140;
+            const sy = source.position_y + 50;
+            const tx = target.position_x;
+            const ty = target.position_y + 50;
+            
+            const midX = (sx + tx) / 2;
+            
+            return `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`;
+        }
+        
+        function getDrawingPath() {
+            if (!drawingEdge.value) return '';
+            return '';
+        }
+        
+        // Init
+        onMounted(async () => {
+            loadTemplates();
+            // Try to create a new workflow
+            try {
+                await newWorkflow();
+            } catch (e) {
+                console.log('无法连接到API');
+            }
+        });
+        
+        return {
+            currentWorkflow, nodes, edges, selectedNode, selectedEdge,
+            workflowStatus, execResult, showTemplates, templates, toast,
+            canvas, drawingEdge, canvasWidth, canvasHeight, contextMenu,
+            selectedNodeData, nodeCategories,
+            loadTemplates, createFromTemplate, newWorkflow, saveWorkflow,
+            executeWorkflow, validateWorkflow, clearCanvas,
+            onDragStart, onDragEnd, onDrop,
+            onNodeMouseDown, onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp,
+            onContextMenu,
+            updateNodeProperty, updateNodePosition, deleteSelectedNode,
+            copyNode, pasteNode, duplicateNode,
+            getNodeIcon, getNodeConfigSummary, getEdgePath, getDrawingPath
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

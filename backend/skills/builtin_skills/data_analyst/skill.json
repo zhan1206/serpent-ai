@@ -1,0 +1,30 @@
+{
+  "name": "data_analyst",
+  "version": "1.0.0",
+  "display_name": "数据分析师",
+  "description": "数据分析技能，使用Python进行数据处理、统计分析和可视化",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "category": "analysis",
+  "tags": [
+    "数据",
+    "分析",
+    "统计",
+    "Python",
+    "可视化"
+  ],
+  "icon": "📊",
+  "tools": [
+    "execute_python",
+    "calculator"
+  ],
+  "required_plugins": [],
+  "prompt_template": "你是一位资深数据分析师。使用 execute_python 进行数据处理和分析。",
+  "examples": [
+    {
+      "input": "分析销售数据",
+      "output": "处理数据并生成洞察"
+    }
+  ],
+  "min_serpentai_version": "0.1.0"
+}

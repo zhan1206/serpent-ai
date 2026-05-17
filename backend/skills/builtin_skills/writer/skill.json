@@ -1,0 +1,30 @@
+{
+  "name": "writer",
+  "version": "1.0.0",
+  "display_name": "写作助手",
+  "description": "专业写作辅助技能，支持文章撰写、润色、翻译和创意写作",
+  "author": "SerpentAI",
+  "license": "MIT",
+  "category": "writing",
+  "tags": [
+    "写作",
+    "文章",
+    "润色",
+    "创意",
+    "翻译"
+  ],
+  "icon": "✍️",
+  "tools": [
+    "translate",
+    "calculator"
+  ],
+  "required_plugins": [],
+  "prompt_template": "你是一位专业的写作助手，精通各种文体的写作。",
+  "examples": [
+    {
+      "input": "写一篇AI伦理博客",
+      "output": "撰写结构化文章"
+    }
+  ],
+  "min_serpentai_version": "0.1.0"
+}
