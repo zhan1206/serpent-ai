@@ -4,8 +4,11 @@ Mock 模型适配器 - 用于测试/演示（无需真实模型或API密钥）
 
 import time
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from models.base_model import BaseModelAdapter, ModelResponse, Message
+
+logger = logging.getLogger(__name__)
 
 
 class MockAdapter(BaseModelAdapter):
