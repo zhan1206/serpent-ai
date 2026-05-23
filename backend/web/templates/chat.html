@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>聊天 - SerpentAI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -12,6 +15,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            color: #fff;
         }
         header {
             background: rgba(255,255,255,0.1);
@@ -19,6 +23,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            backdrop-filter: blur(10px);
         }
         .logo {
             font-size: 20px;
@@ -27,24 +32,33 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .model-select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+        }
         .chat-container {
             flex: 1;
             display: flex;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             width: 100%;
             padding: 20px;
             gap: 20px;
         }
         .sidebar {
-            width: 250px;
+            width: 260px;
             background: rgba(255,255,255,0.05);
             border-radius: 12px;
             padding: 15px;
             display: none;
+            overflow-y: auto;
         }
         @media (min-width: 768px) {
-            .sidebar { display: block; }
+            .sidebar { display: flex; flex-direction: column; }
         }
         .chat-area {
             flex: 1;
@@ -66,7 +80,8 @@
             max-width: 80%;
             padding: 12px 16px;
             border-radius: 12px;
-            line-height: 1.5;
+            line-height: 1.6;
+            word-wrap: break-word;
         }
         .message.user {
             align-self: flex-end;
@@ -76,23 +91,71 @@
             align-self: flex-start;
             background: rgba(255,255,255,0.1);
         }
+        .message.assistant pre {
+            background: #1e1e2e;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .message.assistant code {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .message.assistant p {
+            margin-bottom: 10px;
+        }
+        .typing-indicator {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.1);
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: none;
+        }
+        .typing-indicator.active {
+            display: flex;
+            gap: 5px;
+        }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
         .input-area {
             padding: 15px;
             background: rgba(255,255,255,0.05);
             display: flex;
             gap: 10px;
+            align-items: flex-end;
         }
-        .input-area input {
+        .input-wrapper {
             flex: 1;
+            position: relative;
+        }
+        #input {
+            width: 100%;
             padding: 12px 16px;
-            border: none;
+            border: 1px solid rgba(255,255,255,0.2);
             border-radius: 25px;
             background: rgba(255,255,255,0.1);
             color: #fff;
             font-size: 16px;
+            resize: none;
+            min-height: 24px;
+            max-height: 120px;
+            overflow-y: auto;
         }
-        .input-area input:focus {
+        #input:focus {
             outline: none;
+            border-color: #00d4ff;
             background: rgba(255,255,255,0.15);
         }
         .input-area button {
@@ -103,12 +166,22 @@
             color: #fff;
             font-weight: bold;
             cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .input-area button:hover {
+            transform: scale(1.05);
+        }
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
         }
         .session-item {
             padding: 10px;
             border-radius: 8px;
             cursor: pointer;
             margin-bottom: 5px;
+            transition: background 0.2s;
         }
         .session-item:hover {
             background: rgba(255,255,255,0.1);
@@ -116,70 +189,322 @@
         .session-item.active {
             background: rgba(0,212,255,0.2);
         }
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .new-chat-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .new-chat-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .tool-call {
+            background: rgba(0,212,255,0.1);
+            border-left: 3px solid #00d4ff;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .tool-call-name {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        .token-counter {
+            text-align: center;
+            padding: 10px;
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
     <header>
         <div class="logo">SerpentAI</div>
-        <div>
-            <a href="/" style="color: #fff; text-decoration: none; margin-right: 15px;">首页</a>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <select class="model-select" id="modelSelect">
+                <option value="gpt-4">GPT-4</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                <option value="claude-3">Claude 3</option>
+                <option value="llama-3-8b">Llama 3 8B (本地)</option>
+            </select>
+            <a href="/" style="color: #fff; text-decoration: none;">首页</a>
             <a href="/settings" style="color: #fff; text-decoration: none;">设置</a>
         </div>
     </header>
     <div class="chat-container">
         <aside class="sidebar">
-            <h3 style="margin-bottom: 15px;">会话历史</h3>
+            <div class="sidebar-header">
+                <h3>会话历史</h3>
+                <button class="new-chat-btn" onclick="newChat()">+ 新对话</button>
+            </div>
             <div id="sessions">
-                <div class="session-item active">新对话</div>
+                <div class="session-item active" data-session="new">新对话</div>
             </div>
         </aside>
         <div class="chat-area">
             <div class="messages" id="messages">
                 <div class="message assistant">
-                    你好！我是SerpentAI，你的智能AI助手。有什么我可以帮助你的吗？
+                    你好！我是 <strong>SerpentAI</strong>，你的智能AI助手。有什么我可以帮助你的吗？<br><br>
+                    我可以帮你：
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>📝 编写和调试代码</li>
+                        <li>📊 分析数据和文件</li>
+                        <li>🔍 搜索和总结信息</li>
+                        <li>🛠️ 调用工具完成任务</li>
+                    </ul>
                 </div>
             </div>
+            <div class="typing-indicator" id="typingIndicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+            <div class="token-counter" id="tokenCounter"></div>
             <div class="input-area">
-                <input type="text" id="input" placeholder="输入消息..." autocomplete="off">
-                <button onclick="sendMessage()">发送</button>
+                <div class="input-wrapper">
+                    <textarea id="input" placeholder="输入消息... (Shift+Enter 换行)" rows="1"></textarea>
+                </div>
+                <button id="sendBtn" onclick="sendMessage()">发送</button>
             </div>
         </div>
     </div>
     <script>
+        // 配置
+        const API_BASE = '/api';
+        let currentSessionId = 'new';
+        let isStreaming = false;
+        
+        // DOM 元素
         const input = document.getElementById('input');
         const messages = document.getElementById('messages');
+        const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const tokenCounter = document.getElementById('tokenCounter');
+        const modelSelect = document.getElementById('modelSelect');
         
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
+        // 自动调整输入框高度
+        input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
         
+        // 发送消息（Enter 发送，Shift+Enter 换行）
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // 发送消息
         async function sendMessage() {
             const text = input.value.trim();
-            if (!text) return;
+            if (!text || isStreaming) return;
             
+            // 添加用户消息
             addMessage('user', text);
             input.value = '';
+            input.style.height = 'auto';
+            
+            // 禁用发送按钮
+            isStreaming = true;
+            sendBtn.disabled = true;
+            typingIndicator.classList.add('active');
             
             try {
-                const resp = await fetch('/api/chat', {
+                // 调用 API（流式）
+                const response = await fetch(`${API_BASE}/chat`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: text})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        model: modelSelect.value,
+                        session_id: currentSessionId,
+                        stream: true
+                    })
                 });
-                const data = await resp.json();
-                addMessage('assistant', data.message || '...");
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let assistantMessage = '';
+                let messageDiv = null;
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') break;
+                            
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.content) {
+                                    assistantMessage += parsed.content;
+                                    
+                                    // 创建或更新助手消息
+                                    if (!messageDiv) {
+                                        messageDiv = addMessage('assistant', '', true);
+                                    }
+                                    renderMarkdown(messageDiv, assistantMessage);
+                                }
+                                
+                                // 更新 Token 计数
+                                if (parsed.usage) {
+                                    updateTokenCounter(parsed.usage);
+                                }
+                            } catch (e) {
+                                console.error('解析错误:', e);
+                            }
+                        }
+                    }
+                }
+                
+                // 滚动到底部
+                scrollToBottom();
+                
             } catch (e) {
-                addMessage('assistant', '抱歉，发生了错误');
+                console.error('发送失败:', e);
+                addMessage('assistant', `❌ 发送失败: ${e.message}`);
+            } finally {
+                isStreaming = false;
+                sendBtn.disabled = false;
+                typingIndicator.classList.remove('active');
             }
         }
         
-        function addMessage(role, text) {
+        // 添加消息
+        function addMessage(role, text, returnDiv = false) {
             const div = document.createElement('div');
             div.className = `message ${role}`;
-            div.textContent = text;
+            
+            if (text) {
+                if (role === 'assistant') {
+                    renderMarkdown(div, text);
+                } else {
+                    div.textContent = text;
+                }
+            }
+            
             messages.appendChild(div);
+            scrollToBottom();
+            
+            if (returnDiv) return div;
+        }
+        
+        // 渲染 Markdown
+        function renderMarkdown(div, text) {
+            // 使用 marked.js 渲染 Markdown
+            if (typeof marked !== 'undefined') {
+                div.innerHTML = marked.parse(text);
+                
+                // 代码高亮
+                div.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightBlock(block);
+                });
+            } else {
+                div.textContent = text;
+            }
+        }
+        
+        // 更新 Token 计数
+        function updateTokenCounter(usage) {
+            if (usage) {
+                tokenCounter.textContent = 
+                    `Token: ${usage.input_tokens || 0} ↑ | ${usage.output_tokens || 0} ↓ | ` +
+                    `总成本: $${(usage.cost || 0).toFixed(4)}`;
+            }
+        }
+        
+        // 滚动到底部
+        function scrollToBottom() {
             messages.scrollTop = messages.scrollHeight;
         }
+        
+        // 新对话
+        function newChat() {
+            currentSessionId = 'new';
+            messages.innerHTML = '';
+            addMessage('assistant', '新对话已开始！有什么我可以帮助你的吗？');
+            
+            // 更新会话列表
+            document.querySelectorAll('.session-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector('.session-item[data-session="new"]').classList.add('active');
+        }
+        
+        // 加载会话历史
+        async function loadSessions() {
+            try {
+                const resp = await fetch(`${API_BASE}/sessions`);
+                const data = await resp.json();
+                
+                const sessionsDiv = document.getElementById('sessions');
+                data.sessions.forEach(session => {
+                    const div = document.createElement('div');
+                    div.className = 'session-item';
+                    div.dataset.session = session.id;
+                    div.textContent = session.title || '新对话';
+                    div.onclick = () => loadSession(session.id);
+                    sessionsDiv.appendChild(div);
+                });
+            } catch (e) {
+                console.error('加载会话失败:', e);
+            }
+        }
+        
+        // 加载单个会话
+        async function loadSession(sessionId) {
+            currentSessionId = sessionId;
+            
+            try {
+                const resp = await fetch(`${API_BASE}/sessions/${sessionId}`);
+                const data = await resp.json();
+                
+                // 清空消息区
+                messages.innerHTML = '';
+                
+                // 添加历史消息
+                data.messages.forEach(msg => {
+                    addMessage(msg.role, msg.content);
+                });
+                
+                // 更新活跃状态
+                document.querySelectorAll('.session-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                document.querySelector(`.session-item[data-session="${sessionId}"]`).classList.add('active');
+                
+            } catch (e) {
+                console.error('加载会话失败:', e);
+            }
+        }
+        
+        // 页面加载时初始化
+        window.addEventListener('load', () => {
+            loadSessions();
+            input.focus();
+        });
     </script>
 </body>
 </html>

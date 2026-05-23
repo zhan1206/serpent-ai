@@ -29,6 +29,7 @@ from routes.web import router as web_router
 from routes.agent import router as agent_router  # Agent API routes
 from routes.workflow import router as workflow_router  # Workflow API routes
 from routes.voice import router as voice_router  # Voice API routes
+from routes.chat import router as chat_router  # Chat API routes
 from gateways import get_gateway_manager, get_message_router
 
 # 导入效率引擎
@@ -122,6 +123,7 @@ app.include_router(web_router)
 app.include_router(agent_router)  # Agent API routes
 app.include_router(workflow_router)  # Workflow API routes
 app.include_router(voice_router)  # Voice API routes
+app.include_router(chat_router)  # Chat API routes (SSE streaming)
 
 # ==================== 中间件配置 ====================
 
