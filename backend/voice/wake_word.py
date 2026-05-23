@@ -191,7 +191,7 @@ class WakeWordDetector:
         
         return WakeResult(detected=False, audio_energy=energy)
     
-    def detect_stream(
+    async def detect_stream(
         self,
         audio_stream: AsyncGenerator[bytes, None],
         on_wake: Optional[Callable[[WakeResult], None]] = None
