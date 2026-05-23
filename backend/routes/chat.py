@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from models.base_model import Message, ModelResponse
-from models.registry import ModelRegistry
+from models.registry import ModelRegistry, get_global_registry
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +193,7 @@ async def _get_model(model_name: Optional[str]):
     Returns:
         模型适配器实例
     """
-    registry = ModelRegistry()
+    registry = get_global_registry()
     
     if model_name:
         # 按名称获取

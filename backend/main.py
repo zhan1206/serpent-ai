@@ -90,6 +90,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             logger.warning(f"工具系统初始化失败（可稍后重试）: {e}")
         
+        # 初始化模型注册表
+        logger.info("正在初始化模型注册表...")
+        try:
+            from models.registry import init_default_models
+            init_default_models()
+            logger.info("模型注册表初始化完成！")
+        except Exception as e:
+            logger.warning(f"模型注册表初始化失败（可稍后重试）: {e}")
+        
     except Exception as e:
         logger.error(f"启动失败: {e}")
         raise
