@@ -344,6 +344,14 @@ def decrypt_data(encrypted_data: bytes) -> bytes:
     """快捷解密函数"""
     return encryption_manager.decrypt_symmetric(encrypted_data)
 
+def hash_password(password: str, salt: Optional[bytes] = None) -> Tuple[str, str]:
+    """快捷密码哈希函数"""
+    return encryption_manager.hash_password(password, salt)
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """快捷密码验证函数"""
+    return encryption_manager.verify_password(password, password_hash)
+
 def hash_data(data: Union[str, bytes]) -> str:
     """快捷哈希函数"""
     return EncryptionManager.hash_sha256(data)

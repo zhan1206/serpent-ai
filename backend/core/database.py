@@ -2,7 +2,7 @@
 SerpentAI 数据库管理模块
 支持 SQLite（配置/用户/长期记忆）、ChromaDB（向量数据库）、Neo4j（知识图谱）
 """
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -172,7 +172,7 @@ def check_db_health() -> dict:
     # SQLite检查
     try:
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         health["sqlite"] = True
     except Exception as e:

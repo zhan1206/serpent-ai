@@ -8,7 +8,11 @@ import os
 import time
 import logging
 import threading
-import resource as res_module
+# resource module is Unix-only; use fallback on Windows
+try:
+    import resource as res_module
+except ImportError:
+    res_module = None
 from typing import Dict, List, Optional, Set, Any
 from dataclasses import dataclass, field
 from enum import Enum, auto

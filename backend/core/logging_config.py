@@ -34,26 +34,14 @@ class InterceptHandler(logging.Handler):
 
 def format_log(record: Dict[str, Any]) -> str:
     """
-    自定义日志格式
-    支持结构化输出和彩色终端显示
+    自定义日志格式（无彩色，兼容所有终端）
     """
-    # 终端彩色输出
-    if record["level"].name == "DEBUG":
-        color = "<cyan>"
-    elif record["level"].name == "INFO":
-        color = "<green>"
-    elif record["level"].name == "WARNING":
-        color = "<yellow>"
-    elif record["level"].name == "ERROR":
-        color = "<red>"
-    else:
-        color = "<white>"
+    level_name = record["level"].name
     
     log_format = (
         "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
-        f"{color}{{level: <8}}</color> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-        "{message}\n"
+        + f"{level_name: <8}"
+        + " | {name}:{function}:{line} | {message}\n"
     )
     
     # 如果有异常信息，附加到日志
@@ -113,12 +101,11 @@ def setup_logging() -> None:
     log_file = settings.LOGS_DIR / "serpent_ai.log"
     logger.add(
         str(log_file),
-        format=serialize_log,
+        format=format_log,
         level=settings.LOG_LEVEL,
         rotation=settings.LOG_ROTATION,  # 100 MB轮转
         retention=settings.LOG_RETENTION,  # 30天保留
         compression="zip",
-        serialize=False,
         encoding="utf-8",
         backtrace=True,
         diagnose=True
@@ -128,7 +115,7 @@ def setup_logging() -> None:
     error_log_file = settings.LOGS_DIR / "error.log"
     logger.add(
         str(error_log_file),
-        format=serialize_log,
+        format=format_log,
         level="ERROR",
         rotation=settings.LOG_ROTATION,
         retention=settings.LOG_RETENTION,

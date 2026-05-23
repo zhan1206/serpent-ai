@@ -269,7 +269,7 @@ class TextToSpeech:
         }
         return voice_map.get(voice, voice)
     
-    def speak_stream(
+    async def speak_stream(
         self,
         text: str,
         voice: Optional[Union[TTSVoice, str]] = None,

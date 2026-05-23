@@ -295,7 +295,7 @@ class SpeechToText:
             audio = whisper.pad_or_trim(audio)
             
             # 编码
-           mel = whisper.log_mel_spectrogram(audio, n_fft=self._local_model.n_mels).to(
+            mel = whisper.log_mel_spectrogram(audio, n_fft=self._local_model.n_mels).to(
                 self._local_model.device
             )
             

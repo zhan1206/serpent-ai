@@ -352,8 +352,8 @@ async def reset_session(session_id: str):
 
 @router.post("/config")
 async def update_voice_config(
+    config: VoiceConfigRequest,
     session_id: str = Query(..., description="会话ID"),
-    config: VoiceConfigRequest
 ):
     """
     更新语音配置
