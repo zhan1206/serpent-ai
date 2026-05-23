@@ -168,7 +168,12 @@ def init_default_models():
         # 尝试注册本地 Llama 模型
         from models.llama_adapter import LlamaAdapter
         llama_adapter = LlamaAdapter("llama-3-8b")
-        registry.register("llama-3-8b", llama_adapter)
+        # 调用 initialize() 初始化模型
+        if llama_adapter.initialize():
+            registry.register("llama-3-8b", llama_adapter)
+            logger.info(f"已注册 Llama 模型: llama-3-8b")
+        else:
+            logger.warning("Llama 模型初始化失败（initialize() 返回 False）")
     except Exception as e:
         logger.warning(f"Llama 模型初始化失败: {e}")
     
