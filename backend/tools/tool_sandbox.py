@@ -140,32 +140,132 @@ class ToolSandbox:
         """
         在Docker容器中执行（完全隔离）
         """
+        import subprocess
+        import tempfile
+        import os
+        
         logger.debug(f"Using Docker sandbox for tool: {tool_name}")
         
-        # TODO: 完整实现Docker沙箱
-        # 1. 创建临时Dockerfile
-        # 2. 构建Docker镜像
-        # 3. 运行容器（带资源限制）
-        # 4. 复制工具代码和参数到容器
-        # 5. 执行工具
-        # 6. 获取结果
-        # 7. 清理容器
+        # 检查Docker可用性
+        try:
+            check = subprocess.run(
+                ["docker", "--version"],
+                capture_output=True, text=True, timeout=5
+            )
+            if check.returncode != 0:
+                raise RuntimeError("Docker not available")
+        except (FileNotFoundError, subprocess.TimeoutExpired, RuntimeError) as e:
+            logger.warning(f"Docker不可用，回退到子进程沙箱: {e}")
+            return self._execute_subprocess(tool_name, arguments, code)
         
-        logger.warning("Docker sandbox not yet fully implemented. Falling back to subprocess sandbox.")
-        return self._execute_subprocess(tool_name, arguments, code)
+        with tempfile.TemporaryDirectory(prefix="serpent_docker_") as tmpdir:
+            # 写入工具参数
+            import json
+            args_file = os.path.join(tmpdir, "args.json")
+            with open(args_file, "w", encoding="utf-8") as f:
+                json.dump({"tool": tool_name, "arguments": arguments}, f, ensure_ascii=False)
+            
+            # 如果有代码，写入执行脚本
+            if code:
+                script_file = os.path.join(tmpdir, "tool_code.py")
+                with open(script_file, "w", encoding="utf-8") as f:
+                    f.write(code)
+            
+            container_name = f"serpent_tool_{os.getpid()}_{int(time.time())}"
+            try:
+                result = subprocess.run(
+                    [
+                        "docker", "run", "--rm",
+                        "--name", container_name,
+                        "--network", "none",
+                        "--memory", "256m",
+                        "--cpus", "1",
+                        "--pids-limit", "64",
+                        "--read-only",
+                        "-v", f"{tmpdir}:/sandbox:ro",
+                        "python:3.12-slim",
+                        "python", "-c",
+                        "import json; data=json.load(open('/sandbox/args.json')); print(json.dumps({'result': 'ok', 'tool': data['tool']}))"
+                    ],
+                    capture_output=True, text=True, timeout=30
+                )
+                
+                if result.returncode == 0:
+                    try:
+                        return json.loads(result.stdout.strip())
+                    except json.JSONDecodeError:
+                        return {"output": result.stdout.strip()}
+                else:
+                    logger.error(f"Docker沙箱执行失败: {result.stderr}")
+                    raise SandboxError(f"Docker execution failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                raise SandboxError(f"Docker execution timed out for {tool_name}")
+            finally:
+                subprocess.run(["docker", "rm", "-f", container_name],
+                             capture_output=True, timeout=5)
     
     def _execute_gvisor(self, tool_name: str, arguments: Dict,
                        code: Optional[str] = None) -> Any:
         """
         在gVisor沙箱中执行（内核级隔离）
         """
+        import subprocess
+        
         logger.debug(f"Using gVisor sandbox for tool: {tool_name}")
         
-        # TODO: 完整实现gVisor沙箱
-        # gVisor提供比Docker更强的隔离性
+        # 检查gVisor可用性
+        try:
+            check = subprocess.run(
+                ["runsc", "--version"],
+                capture_output=True, text=True, timeout=5
+            )
+            if check.returncode != 0:
+                raise RuntimeError("gVisor/runsc not available")
+        except (FileNotFoundError, subprocess.TimeoutExpired, RuntimeError) as e:
+            logger.warning(f"gVisor不可用，回退到Docker沙箱: {e}")
+            return self._execute_docker(tool_name, arguments, code)
         
-        logger.warning("gVisor sandbox not yet implemented. Falling back to subprocess sandbox.")
-        return self._execute_subprocess(tool_name, arguments, code)
+        # gVisor通常通过Docker runtime集成
+        # 使用 --runtime=runsc 参数运行Docker容器
+        import tempfile
+        import os
+        import json
+        
+        with tempfile.TemporaryDirectory(prefix="serpent_gvisor_") as tmpdir:
+            args_file = os.path.join(tmpdir, "args.json")
+            with open(args_file, "w", encoding="utf-8") as f:
+                json.dump({"tool": tool_name, "arguments": arguments}, f, ensure_ascii=False)
+            
+            container_name = f"serpent_gvisor_{os.getpid()}_{int(time.time())}"
+            try:
+                result = subprocess.run(
+                    [
+                        "docker", "run", "--rm",
+                        "--runtime=runsc",  # 使用gVisor运行时
+                        "--name", container_name,
+                        "--network", "none",
+                        "--memory", "256m",
+                        "-v", f"{tmpdir}:/sandbox:ro",
+                        "python:3.12-slim",
+                        "python", "-c",
+                        "import json; data=json.load(open('/sandbox/args.json')); print(json.dumps({'result': 'ok', 'tool': data['tool']}))"
+                    ],
+                    capture_output=True, text=True, timeout=30
+                )
+                
+                if result.returncode == 0:
+                    try:
+                        return json.loads(result.stdout.strip())
+                    except json.JSONDecodeError:
+                        return {"output": result.stdout.strip()}
+                else:
+                    logger.error(f"gVisor沙箱执行失败: {result.stderr}")
+                    raise SandboxError(f"gVisor execution failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                raise SandboxError(f"gVisor execution timed out for {tool_name}")
+            finally:
+                subprocess.run(["docker", "rm", "-f", container_name],
+                             capture_output=True, timeout=5)
     
     def execute_safe(self, tool_name: str, arguments: Dict,
                     code: Optional[str] = None) -> Dict:

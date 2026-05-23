@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from models.base_model import Message, ModelResponse
 from models.registry import ModelRegistry, get_global_registry
+from routes.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +60,39 @@ async def chat(request: ChatRequest):
         # 获取模型
         model = await _get_model(request.model)
         
-        # 构建消息历史（简化版，实际使用应从会话中获取）
-        messages = [
-            Message(role="user", content=request.message)
-        ]
+        # 获取会话存储
+        store = get_session_store()
+        
+        # 如果指定了会话ID，获取历史消息
+        if request.session_id:
+            history = store.get_message_history(request.session_id)
+            # 将历史消息转换为Message对象
+            messages = [Message(role=m["role"], content=m["content"]) for m in history]
+        else:
+            messages = []
+        
+        # 添加当前用户消息
+        messages.append(Message(role="user", content=request.message))
+        
+        # 如果没有会话，自动创建
+        if not request.session_id:
+            session = store.create_session()
+            request = ChatRequest(
+                message=request.message,
+                model=request.model,
+                session_id=session.id,
+                stream=request.stream,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                tools=request.tools,
+            )
+        
+        # 保存用户消息到会话
+        store.add_message(
+            session_id=request.session_id,
+            role="user",
+            content=request.message
+        )
         
         # 流式响应
         if request.stream:
@@ -86,9 +116,10 @@ async def chat(request: ChatRequest):
                 stream=False
             )
             
-            return {
+            result = {
                 "message": response.content,
                 "model": response.model,
+                "session_id": request.session_id,
                 "usage": {
                     "input_tokens": response.input_tokens,
                     "output_tokens": response.output_tokens,
@@ -98,6 +129,24 @@ async def chat(request: ChatRequest):
                 "latency_ms": response.latency_ms,
             }
             
+            # 保存助手回复到会话
+            store.add_message(
+                session_id=request.session_id,
+                role="assistant",
+                content=response.content,
+                model=response.model,
+                tokens=response.total_tokens,
+                latency_ms=response.latency_ms
+            )
+            
+            # 自动更新会话标题（首条消息时）
+            session = store.get_session(request.session_id)
+            if session and session.message_count <= 2:
+                title = request.message[:30] + ("..." if len(request.message) > 30 else "")
+                store.update_session_title(request.session_id, title)
+            
+            return result
+            
     except Exception as e:
         logger.error(f"聊天失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -105,24 +154,22 @@ async def chat(request: ChatRequest):
 # ==================== 会话管理端点 ====================
 
 @router.get("/sessions")
-async def list_sessions():
+async def list_sessions(limit: int = 50, offset: int = 0):
     """
     列出所有会话
     
+    Args:
+        limit: 返回数量限制
+        offset: 偏移量
+        
     Returns:
         Dict: 会话列表
     """
-    # TODO: 从数据库获取会话列表
-    # 暂时返回模拟数据
+    store = get_session_store()
+    sessions = store.list_sessions(limit=limit, offset=offset)
     return {
-        "sessions": [
-            {
-                "id": "new",
-                "title": "新对话",
-                "created_at": int(time.time()),
-                "message_count": 0,
-            }
-        ]
+        "sessions": [s.to_dict() for s in sessions],
+        "total": len(sessions),
     }
 
 @router.post("/sessions")
@@ -136,36 +183,33 @@ async def create_session(request: SessionCreateRequest):
     Returns:
         Dict: 新会话信息
     """
-    session_id = f"session_{int(time.time())}"
+    store = get_session_store()
+    session = store.create_session(title=request.title)
     
-    # TODO: 保存到数据库
-    
-    return {
-        "id": session_id,
-        "title": request.title or "新对话",
-        "created_at": int(time.time()),
-        "message_count": 0,
-    }
+    return session.to_dict()
 
 @router.get("/sessions/{session_id}")
-async def get_session(session_id: str):
+async def get_session(session_id: str, limit: int = 100, offset: int = 0):
     """
     获取会话详情和消息历史
     
     Args:
         session_id: 会话ID
+        limit: 消息数量限制
+        offset: 消息偏移量
         
     Returns:
         Dict: 会话详情和消息列表
     """
-    # TODO: 从数据库获取会话和消息
-    # 暂时返回模拟数据
-    return {
-        "id": session_id,
-        "title": "新对话",
-        "created_at": int(time.time()),
-        "messages": []
-    }
+    store = get_session_store()
+    session = store.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    messages = store.get_messages(session_id, limit=limit, offset=offset)
+    result = session.to_dict()
+    result["messages"] = [m.to_dict() for m in messages]
+    return result
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: str):
@@ -178,7 +222,9 @@ async def delete_session(session_id: str):
     Returns:
         Dict: 删除结果
     """
-    # TODO: 从数据库删除会话
+    store = get_session_store()
+    if not store.delete_session(session_id):
+        raise HTTPException(status_code=404, detail="会话不存在")
     return {"status": "deleted", "session_id": session_id}
 
 # ==================== 内部辅助函数 ====================

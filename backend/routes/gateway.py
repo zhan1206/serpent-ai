@@ -4,6 +4,9 @@
 """
 from fastapi import APIRouter, Request, HTTPException, Query
 from typing import Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/gateway", tags=["多通道网关"])
 
@@ -90,8 +93,23 @@ async def register_message_handler(request: Request):
             raise HTTPException(status_code=400, detail="缺少platform参数")
         
         router_instance = get_message_router()
-        # TODO: 实现动态导入handler
-        return {"status": "success", "platform": platform}
+        
+        # 动态导入handler
+        if handler_path:
+            try:
+                import importlib
+                module_path, handler_name = handler_path.rsplit('.', 1)
+                module = importlib.import_module(module_path)
+                handler = getattr(module, handler_name)
+                router_instance.register_handler(platform, handler)
+                logger.info(f"动态导入handler成功: {handler_path} -> {platform}")
+            except (ImportError, AttributeError) as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"无法导入handler '{handler_path}': {str(e)}"
+                )
+        
+        return {"status": "success", "platform": platform, "handler": handler_path}
     except HTTPException:
         raise
     except Exception as e:
