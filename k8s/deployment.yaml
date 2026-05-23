@@ -1,0 +1,592 @@
+# SerpentAI Kubernetes Deployment Manifests
+# Production-ready configuration
+#
+# Usage:
+#   kubectl apply -f k8s/
+#
+# Prerequisites:
+#   1. Create namespace: kubectl create namespace serpent-ai
+#   2. Create secrets: kubectl create secret generic serpent-ai-secrets --from-env-file=.env.production -n serpent-ai
+#   3. Create configmap: kubectl create configmap serpent-ai-config --from-env-file=.env.production -n serpent-ai
+
+# ==================== Namespace ====================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: serpent-ai
+  labels:
+    app: serpent-ai
+    environment: production
+
+---
+# ==================== ConfigMap ====================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: serpent-ai-config
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+data:
+  # Application
+  APP_NAME: "SerpentAI"
+  APP_VERSION: "0.1.0-alpha"
+  DEBUG: "false"
+  ENVIRONMENT: "production"
+  
+  # Paths
+  BASE_DIR: "/app"
+  DATA_DIR: "/app/data"
+  LOGS_DIR: "/app/backend/logs"
+  CONFIG_DIR: "/app/config"
+  
+  # Database
+  SQLITE_URL: "sqlite:///app/data/serpent_ai.db"
+  CHROMA_PERSIST_DIR: "/app/data/chroma"
+  NEO4J_URI: "bolt://neo4j-service:7687"
+  NEO4J_USER: "neo4j"
+  
+  # Redis
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  
+  # Model
+  OPENAI_API_BASE: "https://api.openai.com/v1"
+  ANTHROPIC_API_BASE: "https://api.anthropic.com"
+  LOCAL_MODEL_DIR: "/app/models"
+  LLAMA_CPP_THREADS: "4"
+  LLAMA_CPP_GPU_LAYERS: "0"
+  
+  # Memory
+  VECTOR_DIMENSION: "384"
+  SIMILARITY_THRESHOLD: "0.7"
+  MAX_INSTANT_MEMORIES: "10"
+  MAX_SHORT_TERM_MEMORIES: "1000"
+  MAX_LONG_TERM_MEMORIES: "10000"
+  
+  # Token Optimization
+  ENABLE_TOKEN_OPTIMIZATION: "true"
+  PROMPT_CACHE_TTL: "3600"
+  TOOL_ID_MAPPING_ENABLED: "true"
+  CONTEXT_COMPRESSION_RATIO: "0.7"
+  
+  # Multi-Agent
+  MAX_AGENTS: "10"
+  AGENT_COMMUNICATION_TIMEOUT: "30"
+  
+  # Log
+  LOG_LEVEL: "WARNING"
+  LOG_ROTATION: "100 MB"
+  LOG_RETENTION: "30 days"
+  
+  # Monitoring
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+---
+# ==================== Secret ====================
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: serpent-ai-secrets
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+type: Opaque
+stringData:
+  # Neo4j
+  NEO4J_PASSWORD: "CHANGE_ME_immediately"
+  
+  # Redis
+  REDIS_PASSWORD: "CHANGE_ME_immediately"
+  
+  # API Keys
+  OPENAI_API_KEY: "sk-YOUR_OPENAI_KEY_HERE"
+  ANTHROPIC_API_KEY: "sk-ant-YOUR_ANTHROPIC_KEY_HERE"
+  
+  # Security
+  SECRET_KEY: "CHANGE_ME_generate_secure_key"
+  ENCRYPTION_KEY: "CHANGE_ME_generate_secure_key"
+
+---
+# ==================== PersistentVolumeClaim ====================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: serpent-ai-data-pvc
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: ""  # Use default storage class
+
+---
+# ==================== Deployment ====================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serpent-ai
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+    version: "0.1.0-alpha"
+spec:
+  replicas: 2  # High availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zero-downtime
+  selector:
+    matchLabels:
+      app: serpent-ai
+  template:
+    metadata:
+      labels:
+        app: serpent-ai
+        version: "0.1.0-alpha"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Security context (non-root)
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      containers:
+        - name: serpent-ai
+          image: serpent-ai:latest
+          imagePullPolicy: Always
+          
+          # Resource limits (prevents resource exhaustion)
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          
+          # Environment variables
+          envFrom:
+            - configMapRef:
+                name: serpent-ai-config
+          env:
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: serpent-ai-secrets
+                  key: NEO4J_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: serpent-ai-secrets
+                  key: REDIS_PASSWORD
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: serpent-ai-secrets
+                  key: OPENAI_API_KEY
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: serpent-ai-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: serpent-ai-secrets
+                  key: SECRET_KEY
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: serpent-ai-secrets
+                  key: ENCRYPTION_KEY
+          
+          # Ports
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          
+          # Liveness probe (is the app alive?)
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+          
+          # Readiness probe (is the app ready to serve?)
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 2  # Requires 2 successes to be marked ready
+          
+          # Startup probe (for slow-starting apps)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30  # Allow up to 5 minutes to start
+          
+          # Volume mounts
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+              readOnly: false
+            - name: logs
+              mountPath: /app/backend/logs
+              readOnly: false
+            - name: models
+              mountPath: /app/models
+              readOnly: true  # Models are read-only
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+              readOnly: false
+          
+          # Security
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false  # Needs to write to /app/data and /app/logs
+          
+          # Logging
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      
+      # Volumes
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: serpent-ai-data-pvc
+        - name: logs
+          emptyDir: {}  # For development; use PVC for production
+        - name: models
+          emptyDir: {}  # For development; use PVC or hostPath for production
+        - name: config
+          configMap:
+            name: serpent-ai-config
+        - name: tmp
+          emptyDir: {}
+      
+      # Pod-level settings
+      terminationGracePeriodSeconds: 60  # Allow 60s for graceful shutdown
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+
+---
+# ==================== Service ====================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: serpent-ai-service
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+spec:
+  type: ClusterIP  # Internal only; use Ingress for external access
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  selector:
+    app: serpent-ai
+
+---
+# ==================== Ingress ====================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: serpent-ai-ingress
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+  annotations:
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # SSL
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+    # Security
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+    
+    # CORS (if needed)
+    # nginx.ingress.kubernetes.io/enable-cors: "true"
+    # nginx.ingress.kubernetes.io/cors-allow-origin: "https://yourdomain.com"
+spec:
+  tls:
+    - hosts:
+        - api.yourdomain.com
+      secretName: serpent-ai-tls
+  rules:
+    - host: api.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: serpent-ai-service
+                port:
+                  number: 8000
+
+---
+# ==================== Horizontal Pod Autoscaler (HPA) ====================
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: serpent-ai-hpa
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: serpent-ai
+  minReplicas: 2  # Minimum replicas
+  maxReplicas: 10  # Maximum replicas
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70  # Scale when CPU > 70%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80  # Scale when Memory > 80%
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 minutes before scaling down
+      policies:
+        - type: Percent
+          value: 10  # Remove at most 10% of pods at a time
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60  # Wait 1 minute before scaling up
+      policies:
+        - type: Percent
+          value: 50  # Add at most 50% more pods
+          periodSeconds: 60
+
+---
+# ==================== Pod Disruption Budget (PDB) ====================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: serpent-ai-pdb
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+spec:
+  minAvailable: 1  # At least 1 pod must be available
+  selector:
+    matchLabels:
+      app: serpent-ai
+
+---
+# ==================== Network Policy ====================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: serpent-ai-network-policy
+  namespace: serpent-ai
+spec:
+  podSelector:
+    matchLabels:
+      app: serpent-ai
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: serpent-ai
+      ports:
+        - protocol: TCP
+          port: 7687  # Neo4j
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: serpent-ai
+      ports:
+        - protocol: TCP
+          port: 6379  # Redis
+    - to: []  # Allow all egress for external APIs (OpenAI, etc.)
+    ports:
+      - protocol: TCP
+        port: 443  # HTTPS
+      - protocol: TCP
+        port: 80   # HTTP
+
+---
+# ==================== ServiceMonitor (for Prometheus Operator) ====================
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: serpent-ai-servicemonitor
+  namespace: serpent-ai
+  labels:
+    app: serpent-ai
+    release: prometheus  # Change to match your Prometheus Operator release
+spec:
+  selector:
+    matchLabels:
+      app: serpent-ai
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+      scheme: http
+
+---
+# ==================== Usage Instructions ====================
+
+# 1. Create namespace:
+#    kubectl apply -f k8s/namespace.yaml
+#    OR: kubectl create namespace serpent-ai
+#
+# 2. Create secrets:
+#    kubectl create secret generic serpent-ai-secrets \
+#      --from-literal=NEO4J_PASSWORD='your_password' \
+#      --from-literal=REDIS_PASSWORD='your_password' \
+#      --from-literal=OPENAI_API_KEY='sk-...' \
+#      --from-literal=ANTHROPIC_API_KEY='sk-ant-...' \
+#      --from-literal=SECRET_KEY=$(openssl rand -hex 32) \
+#      --from-literal=ENCRYPTION_KEY=$(openssl rand -hex 32) \
+#      -n serpent-ai
+#
+# 3. Update ConfigMap (if needed):
+#    kubectl edit configmap serpent-ai-config -n serpent-ai
+#
+# 4. Apply all manifests:
+#    kubectl apply -f k8s/
+#
+# 5. Check deployment status:
+#    kubectl get pods -n serpent-ai
+#    kubectl get svc -n serpent-ai
+#    kubectl get ingress -n serpent-ai
+#
+# 6. View logs:
+#    kubectl logs -f deployment/serpent-ai -n serpent-ai
+#
+# 7. Scale deployment:
+#    kubectl scale deployment serpent-ai --replicas=5 -n serpent-ai
+#
+# 8. Update deployment (rolling update):
+#    kubectl set image deployment/serpent-ai serpent-ai=serpent-ai:v1.0.0 -n serpent-ai
+#
+# 9. Check HPA status:
+#    kubectl get hpa -n serpent-ai
+#
+# 10. Delete everything:
+#     kubectl delete namespace serpent-ai
+
+---
+# ==================== Additional Components ====================
+
+# Uncomment and apply if needed:
+
+# ==================== Neo4j Service ====================
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: neo4j-service
+#   namespace: serpent-ai
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - port: 7687
+#       targetPort: 7687
+#   selector:
+#     app: neo4j
+
+# ==================== Redis Service ====================
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: redis-service
+#   namespace: serpent-ai
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - port: 6379
+#       targetPort: 6379
+#   selector:
+#     app: redis

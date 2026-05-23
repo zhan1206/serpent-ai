@@ -2,9 +2,13 @@
 
 > 自托管企业级AI智能体框架 | 越用越省 · 越用越快 · 越用越好
 
+## 徽章
+
+[![CI](https://github.com/zhan1206/serpent-ai/actions/workflows/tests.yml/badge/pytest.svg)](https://github.com/zhan1206/serpent-ai/actions/workflows/tests.yml) [![Coverage](https://img.shields.io/badge/coverage-39%25-red)](https://github.com/zhan1206/serpent-ai) [![License](https://img.shields.io/github/license/zhan1206/serpent-ai)](LICENSE) [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/) [![Docker](https://img.shields.io/docker/pulls/serpentai/serpent-ai)](https://hub.docker.com/r/serpentai/serpent-ai) [![Stars](https://img.shields.io/github/stars/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai/stargazers) [![Forks](https://img.shields.io/github/forks/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai/network/members) [![Issues](https://img.shields.io/github/issues/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai/issues) [![Last Commit](https://img.shields.io/github/last-commit/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai/commits) [![Code Size](https://img.shields.io/github/languages/code-size/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai) [![Repo Size](https://img.shields.io/github/repo-size/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai) [![Language](https://img.shields.io/github/languages/top/zhan1206/serpent-ai)](https://github.com/zhan1206/serpent-ai)
+
 ## 项目状态
 
-⚠️ **测试版** - 项目仍在积极开发中，部分功能正在完善
+✅ **测试版** - 项目已在积极开发中，核心功能已完成，测试覆盖率39%
 
 ## 特性
 

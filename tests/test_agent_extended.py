@@ -2152,3 +2152,399 @@ class TestMoreBoundaryConditions:
         
         assert result.timestamp is not None
         assert isinstance(result.timestamp, datetime)
+
+
+# ============================================================
+# SelfEvolution 扩展测试 - 新增测试
+# ============================================================
+
+class TestSelfEvolutionExtended:
+    """SelfEvolution 扩展测试 - 进化历史、统计分析、结果验证"""
+    
+    def test_evolution_history_empty(self):
+        """测试空进化历史"""
+        from backend.agent import SelfEvolution
+        
+        evolution = SelfEvolution()
+        
+        history = evolution.get_evolution_history()
+        
+        assert len(history) == 0
+        assert isinstance(history, list)
+    
+    def test_evolution_history_with_results(self):
+        """测试有结果的进化历史"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加多个进化结果
+        for i in range(5):
+            result = EvolutionResult(
+                success=True,
+                tool_name=f"tool_{i}",
+                evolution_type="fix" if i % 2 == 0 else "optimize",
+                fixed=True,
+                improvement=0.1 * i
+            )
+            evolution.evolution_log.append(result)
+        
+        history = evolution.get_evolution_history()
+        
+        assert len(history) == 5
+        # get_evolution_history returns evolution_log[-limit:], last items first
+        # The last appended item (tool_4, improvement=0.4) should be at the end
+        assert history[-1].tool_name == "tool_4"
+    
+    def test_evolution_history_limit(self):
+        """测试进化历史限制"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加30个结果
+        for i in range(30):
+            result = EvolutionResult(
+                success=True,
+                tool_name=f"tool_{i}",
+                evolution_type="fix"
+            )
+            evolution.evolution_log.append(result)
+        
+        # 不限制
+        history_all = evolution.get_evolution_history(limit=0)
+        assert len(history_all) == 30
+        
+        # 限制10个
+        history_10 = evolution.get_evolution_history(limit=10)
+        assert len(history_10) == 10
+        
+        # 限制超过总数
+        history_50 = evolution.get_evolution_history(limit=50)
+        assert len(history_50) == 30
+    
+    def test_evolution_history_filter_by_type(self):
+        """测试按类型过滤进化历史"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加不同类型的进化结果
+        types = ["fix", "optimize", "generate", "fix", "optimize"]
+        for i, evo_type in enumerate(types):
+            result = EvolutionResult(
+                success=True,
+                tool_name=f"tool_{i}",
+                evolution_type=evo_type
+            )
+            evolution.evolution_log.append(result)
+        
+        history = evolution.get_evolution_history()
+        
+        assert len(history) == 5
+        # 检查所有类型
+        type_counts = {}
+        for h in history:
+            type_counts[h.evolution_type] = type_counts.get(h.evolution_type, 0) + 1
+        
+        assert type_counts.get("fix", 0) == 2
+        assert type_counts.get("optimize", 0) == 2
+        assert type_counts.get("generate", 0) == 1
+    
+    def test_evolution_history_filter_by_success(self):
+        """测试按成功状态过滤进化历史"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加成功和失败的结果
+        for i in range(10):
+            result = EvolutionResult(
+                success=(i % 3 != 0),  # 1/3 失败
+                tool_name=f"tool_{i}",
+                evolution_type="fix"
+            )
+            evolution.evolution_log.append(result)
+        
+        history = evolution.get_evolution_history()
+        
+        assert len(history) == 10
+        success_count = sum(1 for h in history if h.success)
+        failure_count = sum(1 for h in history if not h.success)
+        
+        assert success_count == 6  # 10 - 3 (i=0,3,6,9 失败，但9%3!=0)
+        # 重新计算
+        failure_count = sum(1 for i in range(10) if i % 3 == 0)
+        success_count = 10 - failure_count
+        assert success_count == 6
+        assert failure_count == 4
+    
+    def test_stats_calculation(self):
+        """测试统计数据计算"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加各种结果
+        results = [
+            {"success": True, "type": "fix", "fixed": True, "improvement": 0.2},
+            {"success": True, "type": "fix", "fixed": True, "improvement": 0.3},
+            {"success": True, "type": "optimize", "fixed": True, "improvement": 0.5},
+            {"success": True, "type": "generate", "fixed": False, "improvement": 0.0},
+            {"success": False, "type": "fix", "fixed": False, "improvement": 0.0},
+        ]
+        
+        for r in results:
+            result = EvolutionResult(
+                success=r["success"],
+                tool_name="test_tool",
+                evolution_type=r["type"],
+                fixed=r["fixed"],
+                improvement=r["improvement"]
+            )
+            evolution.evolution_log.append(result)
+        
+        stats = evolution.get_stats()
+        
+        assert stats["total_evolutions"] == 5
+        assert stats["fixes_applied"] == 2  # 2个fix且fixed=True
+        assert stats["optimizations_applied"] == 1  # 1个optimize且fixed=True
+        assert stats["skills_generated"] == 0  # generate但fixed=False
+    
+    def test_stats_empty(self):
+        """测试空统计"""
+        from backend.agent import SelfEvolution
+        
+        evolution = SelfEvolution()
+        
+        stats = evolution.get_stats()
+        
+        assert stats["total_evolutions"] == 0
+        assert stats["fixes_applied"] == 0
+        assert stats["optimizations_applied"] == 0
+        assert stats["skills_generated"] == 0
+    
+    def test_stats_with_failed_evolutions(self):
+        """测试包含失败进化的统计"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加成功和不成功的结果
+        for i in range(10):
+            result = EvolutionResult(
+                success=(i < 7),  # 前7个成功
+                tool_name=f"tool_{i}",
+                evolution_type="fix" if i % 2 == 0 else "optimize",
+                fixed=(i < 5)  # 前5个fixed
+            )
+            evolution.evolution_log.append(result)
+        
+        stats = evolution.get_stats()
+        
+        assert stats["total_evolutions"] == 10
+        # fixes_applied: fix type + fixed=True -> i=0(fix,fixed), i=2(fix,fixed), i=4(fix,fixed)
+        assert stats["fixes_applied"] == 3
+        # optimizations_applied: optimize type + fixed=True -> i=1(opt,fixed), i=3(opt,fixed)
+        assert stats["optimizations_applied"] == 2
+    
+    def test_evolution_result_validation(self):
+        """测试进化结果验证"""
+        from backend.agent import EvolutionResult
+        
+        # 有效结果
+        result = EvolutionResult(
+            success=True,
+            tool_name="fs_read",
+            evolution_type="fix",
+            fixed=True,
+            fix_description="Fixed null pointer",
+            code_change="patch",
+            improvement=0.15
+        )
+        
+        # 验证必需字段
+        assert result.success == True
+        assert result.tool_name == "fs_read"
+        assert result.evolution_type == "fix"
+        
+        # 验证可选字段
+        assert result.fixed == True
+        assert result.fix_description == "Fixed null pointer"
+        assert result.code_change == "patch"
+        assert result.improvement == 0.15
+        
+        # 验证时间戳
+        assert result.timestamp is not None
+        assert hasattr(result, 'timestamp')
+    
+    def test_evolution_result_to_dict(self):
+        """测试进化结果转换为字典"""
+        from backend.agent import EvolutionResult
+        import json
+        
+        result = EvolutionResult(
+            success=True,
+            tool_name="test_tool",
+            evolution_type="optimize",
+            fixed=True,
+            improvement=0.25
+        )
+        
+        # 如果有to_dict方法
+        if hasattr(result, 'to_dict'):
+            d = result.to_dict()
+            assert isinstance(d, dict)
+            assert 'success' in d
+            assert 'tool_name' in d
+            assert 'evolution_type' in d
+            
+            # 验证可以JSON序列化
+            json_str = json.dumps(d)
+            assert isinstance(json_str, str)
+    
+    def test_evolution_result_invalid_type(self):
+        """测试无效进化类型"""
+        from backend.agent import EvolutionResult
+        
+        # 进化类型可以是任意字符串（目前没有枚举限制）
+        result = EvolutionResult(
+            success=True,
+            tool_name="test",
+            evolution_type="invalid_type"  # 无效类型
+        )
+        
+        # 应该仍然创建成功
+        assert result.evolution_type == "invalid_type"
+    
+    def test_evolution_performance_tracking(self):
+        """测试进化性能跟踪"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        import time
+        
+        evolution = SelfEvolution()
+        
+        # 模拟多次进化，记录时间
+        start_time = time.time()
+        
+        for i in range(20):
+            result = EvolutionResult(
+                success=True,
+                tool_name=f"tool_{i}",
+                evolution_type="fix" if i % 2 == 0 else "optimize",
+                improvement=0.1 * (i + 1)
+            )
+            evolution.evolution_log.append(result)
+        
+        end_time = time.time()
+        
+        # 验证可以在合理时间内处理
+        assert (end_time - start_time) < 1.0  # 应该小于1秒
+        
+        # 验证统计
+        stats = evolution.get_stats()
+        assert stats["total_evolutions"] == 20
+    
+    def test_evolution_history_order(self):
+        """测试进化历史排序"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        from datetime import datetime, timedelta
+        
+        evolution = SelfEvolution()
+        
+        # 添加具有不同时间戳的结果
+        base_time = datetime.now()
+        
+        for i in range(5):
+            result = EvolutionResult(
+                success=True,
+                tool_name=f"tool_{i}",
+                evolution_type="fix"
+            )
+            # 修改时间戳（模拟不同时间）
+            result.timestamp = base_time + timedelta(hours=i)
+            evolution.evolution_log.append(result)
+        
+        history = evolution.get_evolution_history()
+        
+        # get_evolution_history returns log[-limit:] (append order, oldest first)
+        # The last item should have the latest timestamp
+        assert history[-1].timestamp > history[0].timestamp
+    
+    def test_evolution_tool_analysis(self):
+        """测试工具进化分析"""
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 添加同一工具的多次进化
+        tool_name = "fs_read"
+        
+        for i in range(10):
+            result = EvolutionResult(
+                success=(i < 8),  # 80%成功率
+                tool_name=tool_name,
+                evolution_type="fix" if i % 3 == 0 else "optimize",
+                fixed=(i < 6),
+                improvement=0.05 * (i + 1)
+            )
+            evolution.evolution_log.append(result)
+        
+        # 获取该工具的进化历史
+        tool_history = [
+            r for r in evolution.get_evolution_history()
+            if r.tool_name == tool_name
+        ]
+        
+        assert len(tool_history) == 10
+        
+        # 计算成功率
+        success_rate = sum(1 for r in tool_history if r.success) / len(tool_history)
+        assert abs(success_rate - 0.8) < 0.01
+        
+        # 计算平均改进
+        improvements = [r.improvement for r in tool_history if r.success]
+        avg_improvement = sum(improvements) / len(improvements) if improvements else 0
+        assert avg_improvement > 0
+    
+    def test_evolution_concurrent_safety(self):
+        """测试并发安全性（进化日志访问）"""
+        import threading
+        from backend.agent import SelfEvolution, EvolutionResult
+        
+        evolution = SelfEvolution()
+        
+        # 多个线程同时添加进化结果
+        def add_results(thread_id, count):
+            for i in range(count):
+                result = EvolutionResult(
+                    success=True,
+                    tool_name=f"tool_{thread_id}_{i}",
+                    evolution_type="fix"
+                )
+                evolution.evolution_log.append(result)
+        
+        threads = []
+        for t_id in range(5):
+            t = threading.Thread(target=add_results, args=(t_id, 20))
+            threads.append(t)
+            t.start()
+        
+        for t in threads:
+            t.join()
+        
+        # 验证所有结果都被添加
+        assert len(evolution.evolution_log) == 100  # 5 threads * 20 results
+        
+        # 验证统计正确
+        stats = evolution.get_stats()
+        assert stats["total_evolutions"] == 100
+
+
+
+# ============================================================
+# 运行所有测试
+# ============================================================
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

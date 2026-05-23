@@ -1,7 +1,8 @@
 /**
  * SerpentAI Plugin Store UI
- * 功能：插件管理界面，支持加载/卸载/重载插件，搜索插件
+ * 功能：插件管理界面，支持加载/卸载/重载插件，搜索插件，查看插件详情
  * 要求：原生 JavaScript，包含错误处理、加载状态、用户反馈
+ * 版本：2.0.0
  */
 
 class PluginStore {
@@ -9,16 +10,27 @@ class PluginStore {
    * 构造函数
    * @param {string} containerId - 容器元素 ID
    * @param {string} apiBaseUrl - API 基础 URL
+   * @param {Object} options - 配置选项
+   * @param {number} options.timeout - 请求超时时间（毫秒）
+   * @param {number} options.retryAttempts - 重试次数
    */
-  constructor(containerId, apiBaseUrl = '/api') {
+  constructor(containerId, apiBaseUrl = '/api', options = {}) {
     this.container = document.getElementById(containerId);
     if (!this.container) {
       console.error(`PluginStore: 找不到容器元素 #${containerId}`);
       return;
     }
-    this.apiUrl = apiBaseUrl;
+    
+    this.apiUrl = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
+    this.timeout = options.timeout || 30000;
+    this.retryAttempts = options.retryAttempts || 3;
+    
     this.plugins = [];
+    this.filteredPlugins = [];
     this.isLoading = false;
+    this.currentFilter = 'all'; // all, started, stopped, loaded, error
+    this.searchQuery = '';
+    
     this.init();
   }
 
@@ -33,11 +45,11 @@ class PluginStore {
   /**
    * 显示 toast 通知
    * @param {string} message - 通知消息
-   * @param {string} type - 类型：success, error, info
+   * @param {string} type - 类型：success, error, info, warning
    */
   showToast(message, type = 'info') {
     // 移除已有的 toast
-    const existingToast = this.container.querySelector('.ps-toast');
+    const existingToast = document.body.querySelector('.ps-toast');
     if (existingToast) existingToast.remove();
 
     const toast = document.createElement('div');
@@ -52,8 +64,11 @@ class PluginStore {
       color: white;
       font-size: 14px;
       z-index: 10000;
-      animation: slideIn 0.3s ease;
-      background: ${type === 'success' ? '#6bcb77' : type === 'error' ? '#ff4757' : '#00d4ff'};
+      animation: ps-slideIn 0.3s ease;
+      background: ${type === 'success' ? '#6bcb77' : type === 'error' ? '#ff4757' : type === 'warning' ? '#ffd93d' : '#00d4ff'};
+      color: ${type === 'warning' ? '#000' : '#fff'};
+      max-width: 400px;
+      word-break: break-word;
     `;
     
     // 添加动画样式
@@ -61,11 +76,11 @@ class PluginStore {
       const style = document.createElement('style');
       style.id = 'ps-toast-style';
       style.textContent = `
-        @keyframes slideIn {
+        @keyframes ps-slideIn {
           from { transform: translateX(100px); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
-        @keyframes slideOut {
+        @keyframes ps-slideOut {
           from { transform: translateX(0); opacity: 1; }
           to { transform: translateX(100px); opacity: 0; }
         }
@@ -77,44 +92,117 @@ class PluginStore {
     
     // 3秒后自动移除
     setTimeout(() => {
-      toast.style.animation = 'slideOut 0.3s ease';
+      toast.style.animation = 'ps-slideOut 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
   }
 
   /**
-   * 加载插件列表
+   * 封装 fetch 请求，自动处理超时
+   * @param {string} endpoint - API 端点
+   * @param {Object} options - fetch 选项
+   * @returns {Promise<Object>} 响应数据
    */
-  async loadPlugins() {
+  async fetchWithTimeout(endpoint, options = {}) {
+    const url = endpoint.startsWith('http') ? endpoint : `${this.apiUrl}${endpoint}`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    
+    const defaultOptions = {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
+    };
+    
+    const mergedOptions = {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...options.headers
+      }
+    };
+    
+    try {
+      const resp = await fetch(url, mergedOptions);
+      
+      clearTimeout(timeoutId);
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
+      }
+      
+      return resp.json();
+    } catch (e) {
+      clearTimeout(timeoutId);
+      
+      if (e.name === 'AbortError') {
+        throw new Error(`请求超时 (${this.timeout}ms)`);
+      }
+      
+      throw e;
+    }
+  }
+
+  /**
+   * 加载插件列表（带重试）
+   * @param {number} attempt - 当前尝试次数
+   */
+  async loadPlugins(attempt = 1) {
     if (this.isLoading) return;
+    
     this.isLoading = true;
     this.showLoading(true);
     
     try {
-      const resp = await fetch(`${this.apiUrl}/plugins`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
-      
-      const data = await resp.json();
+      const data = await this.fetchWithTimeout('/plugins');
       this.plugins = data.plugins || [];
+      this.applyFilters();
       this.renderList();
       this.showToast(`已加载 ${this.plugins.length} 个插件`, 'success');
     } catch (e) {
-      console.error('加载插件失败:', e);
+      console.error(`加载插件失败 (尝试 ${attempt}/${this.retryAttempts}):`, e);
+      
+      if (attempt < this.retryAttempts) {
+        await this.delay(1000 * attempt);
+        return this.loadPlugins(attempt + 1);
+      }
+      
       this.showToast(`加载插件失败: ${e.message}`, 'error');
       this.plugins = [];
+      this.applyFilters();
       this.renderList();
     } finally {
       this.isLoading = false;
       this.showLoading(false);
     }
+  }
+
+  /**
+   * 应用过滤器和搜索
+   */
+  applyFilters() {
+    let filtered = [...this.plugins];
+    
+    // 应用状态过滤
+    if (this.currentFilter !== 'all') {
+      filtered = filtered.filter(p => p.state === this.currentFilter);
+    }
+    
+    // 应用搜索过滤
+    if (this.searchQuery.trim()) {
+      const query = this.searchQuery.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(query) ||
+        (p.description && p.description.toLowerCase().includes(query))
+      );
+    }
+    
+    this.filteredPlugins = filtered;
   }
 
   /**
@@ -124,25 +212,17 @@ class PluginStore {
    */
   async toggle(name, state) {
     const action = (state === 'started' || state === 'loaded' || state === 'initialized') ? '卸载' : '加载';
+    
     if (!confirm(`确定要${action}插件 "${name}" 吗？`)) return;
     
     this.showLoading(true);
     
     try {
       const endpoint = (state === 'started' || state === 'loaded' || state === 'initialized') ? 'unload' : 'load';
-      const resp = await fetch(`${this.apiUrl}/plugins/${endpoint}`, {
+      await this.fetchWithTimeout(`/plugins/${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
         body: JSON.stringify({ name })
       });
-      
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
-      }
       
       this.showToast(`插件 "${name}" ${action}成功`, 'success');
       await this.loadPlugins();
@@ -158,22 +238,15 @@ class PluginStore {
    * @param {string} name - 插件名称
    */
   async reload(name) {
+    if (!confirm(`确定要重载插件 "${name}" 吗？`)) return;
+    
     this.showLoading(true);
     
     try {
-      const resp = await fetch(`${this.apiUrl}/plugins/reload`, {
+      await this.fetchWithTimeout('/plugins/reload', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
         body: JSON.stringify({ name })
       });
-      
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
-      }
       
       this.showToast(`插件 "${name}" 重载成功`, 'success');
       await this.loadPlugins();
@@ -185,41 +258,143 @@ class PluginStore {
   }
 
   /**
+   * 查看插件详情
+   * @param {string} name - 插件名称
+   */
+  async viewDetails(name) {
+    const plugin = this.plugins.find(p => p.name === name);
+    if (!plugin) {
+      this.showToast(`找不到插件 "${name}"`, 'error');
+      return;
+    }
+    
+    // 创建详情模态框
+    const modal = document.createElement('div');
+    modal.className = 'ps-details-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+    `;
+    
+    modal.innerHTML = `
+      <div style="background: #1a1a2e; border: 1px solid #3a3a5a; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+        <h2 style="color: #00d4ff; margin-bottom: 16px;">🔌 ${this.escapeHtml(plugin.name)}</h2>
+        
+        <div style="margin-bottom: 12px;">
+          <b>版本:</b> <span style="color: #aaa;">${plugin.version || '1.0.0'}</span>
+        </div>
+        
+        <div style="margin-bottom: 12px;">
+          <b>状态:</b> <span class="badge ${plugin.state}">${plugin.state}</span>
+        </div>
+        
+        <div style="margin-bottom: 12px;">
+          <b>类型:</b> <span class="badge ${plugin.type}">${plugin.type || 'unknown'}</span>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+          <b>描述:</b>
+          <p style="color: #aaa; margin-top: 8px; line-height: 1.6;">${this.escapeHtml(plugin.description || '暂无描述')}</p>
+        </div>
+        
+        ${plugin.author ? `
+          <div style="margin-bottom: 12px;">
+            <b>作者:</b> <span style="color: #aaa;">${this.escapeHtml(plugin.author)}</span>
+          </div>
+        ` : ''}
+        
+        ${plugin.homepage ? `
+          <div style="margin-bottom: 12px;">
+            <b>主页:</b> <a href="${this.escapeHtml(plugin.homepage)}" target="_blank" style="color: #00d4ff;">${this.escapeHtml(plugin.homepage)}</a>
+          </div>
+        ` : ''}
+        
+        ${plugin.dependencies && plugin.dependencies.length > 0 ? `
+          <div style="margin-bottom: 16px;">
+            <b>依赖:</b>
+            <ul style="color: #aaa; margin-top: 8px; padding-left: 20px;">
+              ${plugin.dependencies.map(d => `<li>${this.escapeHtml(d)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;">
+          <button class="ps-btn" onclick="this.closest('.ps-details-modal').remove()">关闭</button>
+        </div>
+      </div>
+    `;
+    
+    // 添加按钮样式
+    if (!document.querySelector('#ps-details-style')) {
+      const style = document.createElement('style');
+      style.id = 'ps-details-style';
+      style.textContent = `
+        .ps-btn {
+          background: #2a2a4a;
+          border: 1px solid #3a3a5a;
+          color: #e0e0e0;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: all 0.2s;
+        }
+        .ps-btn:hover {
+          background: #3a3a5a;
+          border-color: #00d4ff;
+        }
+        .ps-btn-primary {
+          background: #00d4ff;
+          color: #0a0a1e;
+          border-color: #00d4ff;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(modal);
+    
+    // 点击背景关闭
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
+    });
+  }
+
+  /**
    * 搜索插件
    * @param {string} query - 搜索关键词
    */
   async search(query) {
-    if (!query.trim()) {
-      await this.loadPlugins();
-      return;
-    }
+    this.searchQuery = query;
+    this.applyFilters();
+    this.renderList();
     
-    this.showLoading(true);
-    
-    try {
-      const resp = await fetch(`${this.apiUrl}/plugins/search?query=${encodeURIComponent(query)}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
-      
-      const data = await resp.json();
-      this.plugins = data.results || [];
-      this.renderList();
-      this.showToast(`找到 ${this.plugins.length} 个匹配的插件`, 'info');
-    } catch (e) {
-      console.error('搜索插件失败:', e);
-      this.showToast(`搜索失败: ${e.message}`, 'error');
-      this.plugins = [];
-      this.renderList();
-    } finally {
-      this.showLoading(false);
+    if (query.trim()) {
+      this.showToast(`找到 ${this.filteredPlugins.length} 个匹配的插件`, 'info');
     }
+  }
+
+  /**
+   * 过滤插件
+   * @param {string} filter - 过滤条件 (all, started, stopped, loaded, error)
+   */
+  filter(filter) {
+    this.currentFilter = filter;
+    this.applyFilters();
+    this.renderList();
+    
+    // 更新过滤按钮样式
+    this.container.querySelectorAll('.ps-filter-btn').forEach(btn => {
+      btn.classList.toggle('ps-filter-active', btn.dataset.filter === filter);
+    });
   }
 
   /**
@@ -263,11 +438,35 @@ class PluginStore {
           document.head.appendChild(style);
         }
         
-        this.container.querySelector('.ps-list').appendChild(loader);
+        const listEl = this.container.querySelector('.ps-list');
+        if (listEl) {
+          listEl.appendChild(loader);
+        }
       }
     } else {
       if (loader) loader.remove();
     }
+  }
+
+  /**
+   * 延迟函数
+   * @param {number} ms - 延迟毫秒数
+   * @returns {Promise}
+   */
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * HTML 转义
+   * @param {string} text - 待转义文本
+   * @returns {string} 转义后文本
+   */
+  escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   /**
@@ -277,13 +476,27 @@ class PluginStore {
     this.container.innerHTML = `
       <div class="ps">
         <h2>🔌 插件商店</h2>
+        
         <div class="ps-controls">
-          <input type="text" placeholder="搜索插件..." oninput="this.closest('.ps')._s.search(this.value)">
-          <button onclick="this.closest('.ps')._s.loadPlugins()">🔄 刷新</button>
+          <input type="text" 
+                 placeholder="搜索插件..." 
+                 oninput="this.closest('.ps')._s.search(this.value)"
+                 style="flex: 1;">
+          <button onclick="this.closest('.ps')._s.loadPlugins()" class="ps-btn">🔄 刷新</button>
         </div>
+        
+        <div class="ps-filters" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+          <button class="ps-filter-btn ps-filter-active" data-filter="all" onclick="this.closest('.ps')._s.filter('all')">全部</button>
+          <button class="ps-filter-btn" data-filter="started" onclick="this.closest('.ps')._s.filter('started')">运行中</button>
+          <button class="ps-filter-btn" data-filter="stopped" onclick="this.closest('.ps')._s.filter('stopped')">已停止</button>
+          <button class="ps-filter-btn" data-filter="loaded" onclick="this.closest('.ps')._s.filter('loaded')">已加载</button>
+          <button class="ps-filter-btn" data-filter="error" onclick="this.closest('.ps')._s.filter('error')">错误</button>
+        </div>
+        
         <div class="ps-list"></div>
       </div>
     `;
+    
     this.container.querySelector('.ps')._s = this;
     
     // 添加响应式样式
@@ -315,6 +528,42 @@ class PluginStore {
           transition: all 0.2s;
         }
         .ps-controls button:hover { background: #3a3a5a; border-color: #00d4ff; }
+        .ps-btn {
+          background: #2a2a4a;
+          border: 1px solid #3a3a5a;
+          color: #e0e0e0;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: all 0.2s;
+        }
+        .ps-btn:hover { background: #3a3a5a; border-color: #00d4ff; }
+        .ps-btn-primary {
+          background: #00d4ff;
+          color: #0a0a1e;
+          border-color: #00d4ff;
+        }
+        .ps-filter-btn {
+          background: #252540;
+          border: 1px solid #3a3a5a;
+          color: #888;
+          padding: 6px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.2s;
+        }
+        .ps-filter-btn:hover {
+          background: #2a2a4a;
+          border-color: #00d4ff;
+          color: #e0e0e0;
+        }
+        .ps-filter-active {
+          background: #00d4ff;
+          color: #0a0a1e;
+          border-color: #00d4ff;
+        }
         .ps-list { display: grid; gap: 12px; }
         .ps-card { 
           background: #1e1e3a; 
@@ -330,6 +579,7 @@ class PluginStore {
         .ps-card.started { border-color: #6bcb77; }
         .ps-card.stopped { border-color: #ff4757; }
         .ps-card.loaded { border-color: #ffd93d; }
+        .ps-card.error { border-color: #ff6b6b; }
         .badge { 
           display: inline-block; 
           padding: 2px 8px; 
@@ -343,6 +593,7 @@ class PluginStore {
         .badge.started { background: #6bcb77; color: black; }
         .badge.stopped { background: #ff4757; color: white; }
         .badge.loaded { background: #ffd93d; color: black; }
+        .badge.error { background: #ff6b6b; color: white; }
         .ps-actions { display: flex; gap: 8px; }
         .ps-actions button { 
           background: #2a2a4a; 
@@ -361,6 +612,7 @@ class PluginStore {
         @media (max-width: 768px) {
           .ps-card { flex-direction: column; align-items: flex-start; gap: 12px; }
           .ps-actions { width: 100%; justify-content: flex-end; }
+          .ps-filters { justify-content: center; }
         }
       `;
       document.head.appendChild(style);
@@ -374,25 +626,28 @@ class PluginStore {
     const el = this.container.querySelector('.ps-list');
     if (!el) return;
     
-    if (!this.plugins.length) {
+    if (!this.filteredPlugins.length) {
       el.innerHTML = '<p style="color: #888; text-align: center; padding: 40px 20px;">暂无插件</p>';
       return;
     }
     
-    el.innerHTML = this.plugins.map(p => `
+    el.innerHTML = this.filteredPlugins.map(p => `
       <div class="ps-card ${p.state}">
-        <div>
-          <b>${p.name}</b> <small style="color: #888;">v${p.version}</small>
-          <span class="badge ${p.type}">${p.type}</span>
-          <span class="badge ${p.state}">${p.state}</span>
-          <br>
-          <small style="color: #aaa;">${p.description || '暂无描述'}</small>
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <b>${this.escapeHtml(p.name)}</b> <small style="color: #888;">v${p.version || '1.0.0'}</small>
+            <span class="badge ${p.type}">${p.type || 'unknown'}</span>
+            <span class="badge ${p.state}">${p.state}</span>
+          </div>
+          <small style="color: #aaa; display: block; margin-bottom: 8px;">${this.escapeHtml(p.description || '暂无描述')}</small>
+          ${p.author ? `<small style="color: #666;">作者: ${this.escapeHtml(p.author)}</small>` : ''}
         </div>
         <div class="ps-actions">
-          <button onclick="this.closest('.ps')._s.toggle('${p.name}','${p.state}')">
+          <button onclick="this.closest('.ps')._s.viewDetails('${this.escapeHtml(p.name)}')">详情</button>
+          <button onclick="this.closest('.ps')._s.toggle('${this.escapeHtml(p.name)}','${p.state}')">
             ${(p.state === 'started' || p.state === 'loaded') ? '卸载' : '加载'}
           </button>
-          <button onclick="this.closest('.ps')._s.reload('${p.name}')">重载</button>
+          <button onclick="this.closest('.ps')._s.reload('${this.escapeHtml(p.name)}')">重载</button>
         </div>
       </div>
     `).join('');

@@ -2,6 +2,7 @@
  * SerpentAI 主应用入口
  * 功能：聊天界面、模型选择、工具管理、插件管理、工作流管理
  * 要求：原生 JavaScript，包含错误处理、加载状态、用户反馈、响应式设计
+ * 版本：2.0.0
  */
 
 class SerpentAIApp {
@@ -10,10 +11,15 @@ class SerpentAIApp {
      * @param {Object} options - 配置选项
      * @param {string} options.apiBase - API 基础 URL
      * @param {string} options.containerId - 容器元素 ID
+     * @param {number} options.timeout - 请求超时时间（毫秒）
+     * @param {number} options.retryAttempts - 重试次数
      */
     constructor(options = {}) {
         this.apiBase = options.apiBase || 'http://localhost:8000';
         this.containerId = options.containerId || 'app';
+        this.timeout = options.timeout || 30000; // 30秒超时
+        this.retryAttempts = options.retryAttempts || 3;
+        
         this.container = document.getElementById(this.containerId);
         
         if (!this.container) {
@@ -24,6 +30,7 @@ class SerpentAIApp {
         // 状态管理
         this.state = {
             isLoading: false,
+            isSending: false,
             currentModel: null,
             models: [],
             tools: [],
@@ -31,7 +38,8 @@ class SerpentAIApp {
             skills: [],
             messages: [],
             conversations: [],
-            currentConversation: null
+            currentConversation: null,
+            connectionStatus: 'disconnected' // connected, disconnected, reconnecting
         };
         
         // 组件实例
@@ -40,6 +48,9 @@ class SerpentAIApp {
             pluginStore: null,
             skillMarketplace: null
         };
+        
+        // 请求控制器（用于取消请求）
+        this.controllers = new Map();
         
         this.init();
     }
@@ -50,6 +61,7 @@ class SerpentAIApp {
     async init() {
         try {
             this.render();
+            this.checkConnection();
             await this.loadInitialData();
             this.initEventListeners();
             this.initVoiceWidget();
@@ -57,7 +69,39 @@ class SerpentAIApp {
         } catch (e) {
             console.error('初始化失败:', e);
             this.showToast('初始化失败: ' + e.message, 'error');
+            this.state.connectionStatus = 'disconnected';
+            this.updateStatusBar();
         }
+    }
+    
+    /**
+     * 检查后端连接状态
+     */
+    async checkConnection() {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const resp = await fetch(`${this.apiBase}/api/health`, {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (resp.ok) {
+                this.state.connectionStatus = 'connected';
+            } else {
+                this.state.connectionStatus = 'disconnected';
+            }
+        } catch (e) {
+            this.state.connectionStatus = 'disconnected';
+            console.warn('后端连接检查失败:', e.message);
+        }
+        
+        this.updateStatusBar();
+        
+        // 定期检查连接
+        setTimeout(() => this.checkConnection(), 30000);
     }
     
     /**
@@ -67,35 +111,56 @@ class SerpentAIApp {
         this.showLoading(true);
         
         try {
-            // 并行加载数据
-            await Promise.all([
-                this.loadModels(),
-                this.loadTools(),
-                this.loadPlugins(),
-                this.loadSkills()
+            // 并行加载数据，带有重试机制
+            const results = await Promise.allSettled([
+                this.loadModelsWithRetry(),
+                this.loadToolsWithRetry(),
+                this.loadPluginsWithRetry(),
+                this.loadSkillsWithRetry()
             ]);
+            
+            // 检查是否有失败的项
+            const failures = results.filter(r => r.status === 'rejected');
+            if (failures.length > 0) {
+                console.warn('部分数据加载失败:', failures);
+                this.showToast(`部分数据加载失败 (${failures.length}/${results.length})`, 'warning');
+            }
         } catch (e) {
             console.error('加载初始数据失败:', e);
+            this.showToast('加载初始数据失败: ' + e.message, 'error');
         } finally {
             this.showLoading(false);
         }
     }
     
     /**
-     * 加载可用模型列表
+     * 带重试的加载模型
      */
-    async loadModels() {
+    async loadModelsWithRetry(attempt = 1) {
         try {
-            const resp = await this.fetchWithError('/api/models');
+            const resp = await this.fetchWithTimeout('/api/models');
             this.state.models = resp.models || [];
             
             if (this.state.models.length > 0) {
-                this.state.currentModel = this.state.models[0].id;
+                // 尝试恢复上次的模型选择
+                const savedModel = localStorage.getItem('serpentai_current_model');
+                if (savedModel && this.state.models.find(m => m.id === savedModel)) {
+                    this.state.currentModel = savedModel;
+                } else {
+                    this.state.currentModel = this.state.models[0].id;
+                }
                 this.updateModelSelector();
             }
         } catch (e) {
-            console.error('加载模型失败:', e);
-            // 使用默认模型列表
+            console.error(`加载模型失败 (尝试 ${attempt}/${this.retryAttempts}):`, e);
+            
+            if (attempt < this.retryAttempts) {
+                await this.delay(1000 * attempt); // 指数退避
+                return this.loadModelsWithRetry(attempt + 1);
+            }
+            
+            // 所有重试都失败，使用默认模型列表
+            console.warn('使用默认模型列表');
             this.state.models = [
                 { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
                 { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai' },
@@ -104,45 +169,73 @@ class SerpentAIApp {
             ];
             this.state.currentModel = this.state.models[0].id;
             this.updateModelSelector();
+            throw e;
         }
     }
     
     /**
-     * 加载可用工具列表
+     * 带重试的加载工具
      */
-    async loadTools() {
+    async loadToolsWithRetry(attempt = 1) {
         try {
-            const resp = await this.fetchWithError('/api/tools');
+            const resp = await this.fetchWithTimeout('/api/tools');
             this.state.tools = resp.tools || [];
             this.updateToolList();
         } catch (e) {
-            console.error('加载工具失败:', e);
+            console.error(`加载工具失败 (尝试 ${attempt}/${this.retryAttempts}):`, e);
+            
+            if (attempt < this.retryAttempts) {
+                await this.delay(1000 * attempt);
+                return this.loadToolsWithRetry(attempt + 1);
+            }
+            
+            this.state.tools = [];
+            this.updateToolList();
+            throw e;
         }
     }
     
     /**
-     * 加载插件列表
+     * 带重试的加载插件
      */
-    async loadPlugins() {
+    async loadPluginsWithRetry(attempt = 1) {
         try {
-            const resp = await this.fetchWithError('/api/plugins');
+            const resp = await this.fetchWithTimeout('/api/plugins');
             this.state.plugins = resp.plugins || [];
             this.updatePluginList();
         } catch (e) {
-            console.error('加载插件失败:', e);
+            console.error(`加载插件失败 (尝试 ${attempt}/${this.retryAttempts}):`, e);
+            
+            if (attempt < this.retryAttempts) {
+                await this.delay(1000 * attempt);
+                return this.loadPluginsWithRetry(attempt + 1);
+            }
+            
+            this.state.plugins = [];
+            this.updatePluginList();
+            throw e;
         }
     }
     
     /**
-     * 加载技能列表
+     * 带重试的加载技能
      */
-    async loadSkills() {
+    async loadSkillsWithRetry(attempt = 1) {
         try {
-            const resp = await this.fetchWithError('/api/skills');
+            const resp = await this.fetchWithTimeout('/api/skills');
             this.state.skills = resp.skills || [];
             this.updateSkillList();
         } catch (e) {
-            console.error('加载技能失败:', e);
+            console.error(`加载技能失败 (尝试 ${attempt}/${this.retryAttempts}):`, e);
+            
+            if (attempt < this.retryAttempts) {
+                await this.delay(1000 * attempt);
+                return this.loadSkillsWithRetry(attempt + 1);
+            }
+            
+            this.state.skills = [];
+            this.updateSkillList();
+            throw e;
         }
     }
     
@@ -151,7 +244,9 @@ class SerpentAIApp {
      * @param {string} message - 用户消息
      */
     async sendMessage(message) {
-        if (!message || !message.trim()) return;
+        if (!message || !message.trim() || this.state.isSending) return;
+        
+        this.state.isSending = true;
         
         // 添加用户消息到界面
         this.addMessage('user', message);
@@ -161,10 +256,15 @@ class SerpentAIApp {
         if (input) input.value = '';
         
         // 显示加载状态
-        this.addMessage('assistant', '正在思考...', true);
+        const loadingMsg = this.addMessage('assistant', '正在思考...', true);
+        
+        // 创建请求控制器
+        const requestId = Date.now().toString();
+        const controller = new AbortController();
+        this.controllers.set(requestId, controller);
         
         try {
-            const resp = await fetch(`${this.apiBase}/api/chat`, {
+            const resp = await this.fetchWithTimeout('/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -174,36 +274,67 @@ class SerpentAIApp {
                     message: message,
                     model: this.state.currentModel,
                     conversation_id: this.state.currentConversation?.id || null,
-                    tools: this.getEnabledTools()
-                })
+                    tools: this.getEnabledTools(),
+                    stream: false // 是否使用流式响应
+                }),
+                signal: controller.signal
             });
             
-            if (!resp.ok) {
-                const errorData = await resp.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
-            }
-            
-            const data = await resp.json();
-            
             // 移除加载消息
-            this.removeLoadingMessage();
+            this.removeLoadingMessage(loadingMsg);
             
             // 添加助手回复
-            this.addMessage('assistant', data.response || data.message || '暂无回复');
+            this.addMessage('assistant', resp.response || resp.message || '暂无回复');
             
             // 更新对话列表
-            if (data.conversation_id) {
+            if (resp.conversation_id) {
                 this.state.currentConversation = {
-                    id: data.conversation_id,
+                    id: resp.conversation_id,
                     title: message.substring(0, 50)
                 };
                 this.loadConversations();
             }
+            
+            // 如果有语音组件且启用了自动朗读，则朗读回复
+            if (this.components.voiceWidget && localStorage.getItem('serpentai_auto_speak') === 'true') {
+                try {
+                    await this.components.voiceWidget.speak(resp.response || resp.message || '暂无回复');
+                } catch (e) {
+                    console.warn('自动朗读失败:', e);
+                }
+            }
         } catch (e) {
             console.error('发送消息失败:', e);
-            this.removeLoadingMessage();
-            this.addMessage('assistant', `错误: ${e.message}`, false, true);
-            this.showToast('发送消息失败: ' + e.message, 'error');
+            this.removeLoadingMessage(loadingMsg);
+            
+            // 根据错误类型显示不同的错误消息
+            let errorMsg = '发送消息失败: ';
+            if (e.name === 'AbortError') {
+                errorMsg += '请求已取消';
+            } else if (e.name === 'TimeoutError') {
+                errorMsg += '请求超时，请重试';
+            } else {
+                errorMsg += e.message;
+            }
+            
+            this.addMessage('assistant', errorMsg, false, true);
+            this.showToast(errorMsg, 'error');
+        } finally {
+            this.state.isSending = false;
+            this.controllers.delete(requestId);
+        }
+    }
+    
+    /**
+     * 取消正在发送的消息
+     * @param {string} requestId - 请求 ID
+     */
+    cancelRequest(requestId) {
+        const controller = this.controllers.get(requestId);
+        if (controller) {
+            controller.abort();
+            this.controllers.delete(requestId);
+            this.showToast('请求已取消', 'info');
         }
     }
     
@@ -216,7 +347,7 @@ class SerpentAIApp {
      */
     addMessage(role, content, isLoading = false, isError = false) {
         const messagesEl = this.container.querySelector('.sa-messages');
-        if (!messagesEl) return;
+        if (!messagesEl) return null;
         
         const messageEl = document.createElement('div');
         messageEl.className = `sa-message sa-message-${role}${isLoading ? ' sa-loading' : ''}${isError ? ' sa-error' : ''}`;
@@ -226,6 +357,9 @@ class SerpentAIApp {
             minute: '2-digit' 
         });
         
+        // 支持 Markdown 格式（简化版）
+        const formattedContent = this.formatMessage(content);
+        
         messageEl.innerHTML = `
             <div class="sa-message-avatar">${role === 'user' ? '🧑' : '🤖'}</div>
             <div class="sa-message-content">
@@ -233,7 +367,7 @@ class SerpentAIApp {
                     <span class="sa-message-role">${role === 'user' ? '你' : 'SerpentAI'}</span>
                     <span class="sa-message-time">${timestamp}</span>
                 </div>
-                <div class="sa-message-text">${this.escapeHtml(content)}</div>
+                <div class="sa-message-text">${formattedContent}</div>
             </div>
         `;
         
@@ -247,17 +381,60 @@ class SerpentAIApp {
                 content,
                 timestamp: new Date().toISOString()
             });
+            
+            // 限制消息历史数量（防止内存溢出）
+            if (this.state.messages.length > 100) {
+                this.state.messages = this.state.messages.slice(-100);
+            }
         }
         
         return messageEl;
     }
     
     /**
-     * 移除加载中的消息
+     * 格式化消息（支持简单的 Markdown）
+     * @param {string} text - 原始文本
+     * @returns {string} 格式化后的 HTML
      */
-    removeLoadingMessage() {
-        const loadingEl = this.container.querySelector('.sa-message.sa-loading');
-        if (loadingEl) loadingEl.remove();
+    formatMessage(text) {
+        if (!text) return '';
+        
+        // 转义 HTML
+        let html = this.escapeHtml(text);
+        
+        // 代码块
+        html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
+        
+        // 行内代码
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        
+        // 粗体
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        
+        // 斜体
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        
+        // 链接
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+        
+        // 换行
+        html = html.replace(/\n/g, '<br>');
+        
+        return html;
+    }
+    
+    /**
+     * 移除加载中的消息
+     * @param {HTMLElement} loadingMsg - 加载消息元素
+     */
+    removeLoadingMessage(loadingMsg) {
+        if (loadingMsg && loadingMsg.parentNode) {
+            loadingMsg.remove();
+        } else {
+            // 备用：查找并移除
+            const loadingEl = this.container.querySelector('.sa-message.sa-loading');
+            if (loadingEl) loadingEl.remove();
+        }
     }
     
     /**
@@ -268,7 +445,7 @@ class SerpentAIApp {
         if (!selector) return;
         
         selector.innerHTML = this.state.models.map(m => 
-            `<option value="${m.id}" ${m.id === this.state.currentModel ? 'selected' : ''}>${m.name}</option>`
+            `<option value="${m.id}" ${m.id === this.state.currentModel ? 'selected' : ''}>${this.escapeHtml(m.name)}</option>`
         ).join('');
     }
     
@@ -285,12 +462,18 @@ class SerpentAIApp {
         }
         
         toolList.innerHTML = this.state.tools.map(t => `
-            <div class="sa-tool-item" data-tool="${t.name}">
-                <label>
-                    <input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="this.closest('.sa')._app.toggleTool('${t.name}', this.checked)">
-                    <span class="sa-tool-name">${t.name}</span>
+            <div class="sa-tool-item" data-tool="${this.escapeHtml(t.name)}">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" ${t.enabled ? 'checked' : ''} 
+                           onchange="this.closest('.sa')._app.toggleTool('${this.escapeHtml(t.name)}', this.checked)"
+                           style="margin-right: 8px;">
+                    <div>
+                        <span class="sa-tool-name" style="font-weight: 600;">${this.escapeHtml(t.name)}</span>
+                        ${t.version ? `<span style="font-size: 11px; color: #888; margin-left: 4px;">v${t.version}</span>` : ''}
+                        <br>
+                        <small style="color: #aaa;">${this.escapeHtml(t.description || '暂无描述')}</small>
+                    </div>
                 </label>
-                <small style="color: #888; display: block; margin-top: 4px;">${t.description || '暂无描述'}</small>
             </div>
         `).join('');
     }
@@ -308,20 +491,22 @@ class SerpentAIApp {
         }
         
         pluginList.innerHTML = this.state.plugins.map(p => `
-            <div class="sa-plugin-item ${p.state}">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <b>${p.name}</b> <small style="color: #888;">v${p.version || '1.0.0'}</small>
-                        <span class="sa-badge sa-badge-${p.state}">${p.state}</span>
-                        <br>
-                        <small style="color: #aaa;">${p.description || '暂无描述'}</small>
-                    </div>
-                    <div style="display: flex; gap: 4px;">
-                        <button onclick="this.closest('.sa')._app.togglePlugin('${p.name}', '${p.state}')" 
-                                class="sa-btn sa-btn-sm">
-                            ${p.state === 'started' ? '停止' : '启动'}
-                        </button>
-                    </div>
+            <div class="sa-plugin-item ${p.state}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div>
+                    <b>${this.escapeHtml(p.name)}</b> <small style="color: #888;">v${p.version || '1.0.0'}</small>
+                    <span class="sa-badge sa-badge-${p.state}">${p.state}</span>
+                    <br>
+                    <small style="color: #aaa;">${this.escapeHtml(p.description || '暂无描述')}</small>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                    <button onclick="this.closest('.sa')._app.togglePlugin('${this.escapeHtml(p.name)}', '${p.state}')" 
+                            class="sa-btn sa-btn-sm">
+                        ${p.state === 'started' ? '停止' : '启动'}
+                    </button>
+                    <button onclick="this.closest('.sa')._app.reloadPlugin('${this.escapeHtml(p.name)}')" 
+                            class="sa-btn sa-btn-sm">
+                        重载
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -340,21 +525,19 @@ class SerpentAIApp {
         }
         
         skillList.innerHTML = this.state.skills.map(s => `
-            <div class="sa-skill-item ${s.enabled ? '' : 'sa-disabled'}">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="font-size: 20px; margin-right: 8px;">${s.icon || '📦'}</span>
-                        <b>${s.display_name || s.name}</b>
-                        ${!s.enabled ? '<span class="sa-badge" style="background: #555;">已禁用</span>' : ''}
-                        <br>
-                        <small style="color: #aaa;">${s.description || '暂无描述'}</small>
-                    </div>
-                    <div style="display: flex; gap: 4px;">
-                        <button onclick="this.closest('.sa')._app.toggleSkill('${s.name}', ${s.enabled})" 
-                                class="sa-btn sa-btn-sm">
-                            ${s.enabled ? '禁用' : '启用'}
-                        </button>
-                    </div>
+            <div class="sa-skill-item ${s.enabled ? '' : 'sa-disabled'}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div>
+                    <span style="font-size: 20px; margin-right: 8px;">${s.icon || '📦'}</span>
+                    <b>${this.escapeHtml(s.display_name || s.name)}</b>
+                    ${!s.enabled ? '<span class="sa-badge" style="background: #555;">已禁用</span>' : ''}
+                    <br>
+                    <small style="color: #aaa;">${this.escapeHtml(s.description || '暂无描述')}</small>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                    <button onclick="this.closest('.sa')._app.toggleSkill('${this.escapeHtml(s.name)}', ${s.enabled})" 
+                            class="sa-btn sa-btn-sm">
+                        ${s.enabled ? '禁用' : '启用'}
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -367,12 +550,12 @@ class SerpentAIApp {
      */
     async toggleTool(toolName, enabled) {
         try {
-            await this.fetchWithError(`/api/tools/${toolName}/${enabled ? 'enable' : 'disable'}`, {
+            await this.fetchWithTimeout(`/api/tools/${toolName}/${enabled ? 'enable' : 'disable'}`, {
                 method: 'POST'
             });
             
             this.showToast(`工具 "${toolName}" 已${enabled ? '启用' : '禁用'}`, 'success');
-            await this.loadTools();
+            await this.loadToolsWithRetry();
         } catch (e) {
             console.error('切换工具状态失败:', e);
             this.showToast('操作失败: ' + e.message, 'error');
@@ -388,15 +571,34 @@ class SerpentAIApp {
         const action = currentState === 'started' ? 'stop' : 'start';
         
         try {
-            await this.fetchWithError(`/api/plugins/${action}`, {
+            await this.fetchWithTimeout(`/api/plugins/${action}`, {
                 method: 'POST',
                 body: { name: pluginName }
             });
             
             this.showToast(`插件 "${pluginName}" 已${action === 'start' ? '启动' : '停止'}`, 'success');
-            await this.loadPlugins();
+            await this.loadPluginsWithRetry();
         } catch (e) {
             console.error('切换插件状态失败:', e);
+            this.showToast('操作失败: ' + e.message, 'error');
+        }
+    }
+    
+    /**
+     * 重载插件
+     * @param {string} pluginName - 插件名称
+     */
+    async reloadPlugin(pluginName) {
+        try {
+            await this.fetchWithTimeout(`/api/plugins/reload`, {
+                method: 'POST',
+                body: { name: pluginName }
+            });
+            
+            this.showToast(`插件 "${pluginName}" 已重载`, 'success');
+            await this.loadPluginsWithRetry();
+        } catch (e) {
+            console.error('重载插件失败:', e);
             this.showToast('操作失败: ' + e.message, 'error');
         }
     }
@@ -408,12 +610,12 @@ class SerpentAIApp {
      */
     async toggleSkill(skillName, currentEnabled) {
         try {
-            await this.fetchWithError(`/api/skills/${skillName}/${currentEnabled ? 'disable' : 'enable'}`, {
+            await this.fetchWithTimeout(`/api/skills/${skillName}/${currentEnabled ? 'disable' : 'enable'}`, {
                 method: 'POST'
             });
             
             this.showToast(`技能 "${skillName}" 已${currentEnabled ? '禁用' : '启用'}`, 'success');
-            await this.loadSkills();
+            await this.loadSkillsWithRetry();
         } catch (e) {
             console.error('切换技能状态失败:', e);
             this.showToast('操作失败: ' + e.message, 'error');
@@ -449,10 +651,12 @@ class SerpentAIApp {
                 },
                 onStateChange: (state) => {
                     console.log('Voice state:', state);
+                    this.updateStatusBar();
                 }
             });
         } catch (e) {
             console.error('初始化语音组件失败:', e);
+            this.showToast('语音组件初始化失败（浏览器可能不支持）', 'warning');
         }
     }
     
@@ -468,6 +672,12 @@ class SerpentAIApp {
                     e.preventDefault();
                     this.sendMessage(input.value);
                 }
+            });
+            
+            // 自动调整高度
+            input.addEventListener('input', () => {
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 120) + 'px';
             });
         }
         
@@ -485,6 +695,7 @@ class SerpentAIApp {
         if (modelSelect) {
             modelSelect.addEventListener('change', (e) => {
                 this.state.currentModel = e.target.value;
+                localStorage.setItem('serpentai_current_model', e.target.value);
                 this.showToast(`已切换到模型: ${e.target.selectedOptions[0].text}`, 'info');
             });
         }
@@ -496,6 +707,18 @@ class SerpentAIApp {
                 this.switchTab(target);
             });
         });
+        
+        // 清空聊天按钮
+        const clearBtn = this.container.querySelector('.sa-clear-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearChat());
+        }
+        
+        // 设置按钮
+        const settingsBtn = this.container.querySelector('.sa-settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.openSettings());
+        }
     }
     
     /**
@@ -505,12 +728,106 @@ class SerpentAIApp {
     switchTab(tabName) {
         // 更新标签样式
         this.container.querySelectorAll('.sa-tab').forEach(t => {
-            t.classList.toggle('sa-tab-active', t.data-tab === tabName);
+            t.classList.toggle('sa-tab-active', t.dataset.tab === tabName);
         });
         
         // 更新内容显示
         this.container.querySelectorAll('.sa-tab-content').forEach(content => {
             content.style.display = content.dataset.tabContent === tabName ? 'block' : 'none';
+        });
+        
+        // 保存到本地存储
+        localStorage.setItem('serpentai_current_tab', tabName);
+    }
+    
+    /**
+     * 清空聊天记录
+     */
+    clearChat() {
+        if (!confirm('确定要清空聊天记录吗？此操作不可撤销。')) return;
+        
+        this.state.messages = [];
+        this.state.currentConversation = null;
+        
+        const messagesEl = this.container.querySelector('.sa-messages');
+        if (messagesEl) messagesEl.innerHTML = '';
+        
+        this.addMessage('assistant', '聊天记录已清空。有什么可以帮你的吗？');
+        this.showToast('聊天记录已清空', 'info');
+    }
+    
+    /**
+     * 打开设置面板
+     */
+    openSettings() {
+        // 创建设置面板
+        const modal = document.createElement('div');
+        modal.className = 'sa-settings-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+        `;
+        
+        modal.innerHTML = `
+            <div style="background: #1a1a2e; border: 1px solid #3a3a5a; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%;">
+                <h2 style="color: #00d4ff; margin-bottom: 20px;">⚙️ 设置</h2>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="setting-auto-speak" ${localStorage.getItem('serpentai_auto_speak') === 'true' ? 'checked' : ''}>
+                        <span style="margin-left: 8px;">自动朗读回复</span>
+                    </label>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px;">API 地址:</label>
+                    <input type="text" id="setting-api-base" value="${this.apiBase}" style="
+                        width: 100%;
+                        background: #252540;
+                        border: 1px solid #3a3a5a;
+                        border-radius: 6px;
+                        padding: 8px 12px;
+                        color: #e0e0e0;
+                        font-size: 14px;
+                    ">
+                </label>
+                
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;">
+                    <button class="sa-btn" onclick="this.closest('.sa-settings-modal').remove()">取消</button>
+                    <button class="sa-btn sa-send-btn" onclick="this.closest('.sa-settings-modal').querySelector('#setting-save-btn').click()">保存</button>
+                    <button id="setting-save-btn" style="display: none;"></button>
+                </div>
+            </div>
+        `;
+        
+        // 保存设置
+        modal.querySelector('#setting-save-btn').addEventListener('click', () => {
+            const autoSpeak = modal.querySelector('#setting-auto-speak').checked;
+            const apiBase = modal.querySelector('#setting-api-base').value;
+            
+            localStorage.setItem('serpentai_auto_speak', autoSpeak);
+            this.apiBase = apiBase;
+            
+            this.showToast('设置已保存', 'success');
+            modal.remove();
+            
+            // 重新检查连接
+            this.checkConnection();
+        });
+        
+        document.body.appendChild(modal);
+        
+        // 点击背景关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
         });
     }
     
@@ -526,7 +843,8 @@ class SerpentAIApp {
                         <select class="sa-model-select" title="选择模型">
                             <option>加载模型中...</option>
                         </select>
-                        <button class="sa-btn" onclick="this.closest('.sa')._app.clearChat()">🗑️ 清空</button>
+                        <button class="sa-btn sa-settings-btn" title="设置">⚙️</button>
+                        <button class="sa-btn sa-clear-btn" title="清空聊天">🗑️</button>
                     </div>
                 </div>
                 
@@ -536,7 +854,7 @@ class SerpentAIApp {
                         <div class="sa-messages"></div>
                         <div class="sa-chat-input-wrapper">
                             <div class="sa-voice-container"></div>
-                            <textarea class="sa-chat-input" placeholder="输入消息... (Shift+Enter 换行)"></textarea>
+                            <textarea class="sa-chat-input" placeholder="输入消息... (Shift+Enter 换行，Enter 发送)"></textarea>
                             <button class="sa-btn sa-send-btn">发送</button>
                         </div>
                     </div>
@@ -544,10 +862,10 @@ class SerpentAIApp {
                     <!-- 侧边栏 -->
                     <div class="sa-sidebar">
                         <div class="sa-tabs">
-                            <div class="sa-tab sa-tab-active" data-tab="tools">工具</div>
-                            <div class="sa-tab" data-tab="plugins">插件</div>
-                            <div class="sa-tab" data-tab="skills">技能</div>
-                            <div class="sa-tab" data-tab="workflow">工作流</div>
+                            <div class="sa-tab sa-tab-active" data-tab="tools">🔧 工具</div>
+                            <div class="sa-tab" data-tab="plugins">🔌 插件</div>
+                            <div class="sa-tab" data-tab="skills">🎯 技能</div>
+                            <div class="sa-tab" data-tab="workflow">🔄 工作流</div>
                         </div>
                         
                         <div class="sa-tab-content" data-tab-content="tools">
@@ -578,14 +896,17 @@ class SerpentAIApp {
                 
                 <div class="sa-statusbar">
                     <span class="sa-status-item">
-                        <span class="sa-dot sa-dot-green"></span>
-                        API: ${this.apiBase}
+                        <span class="sa-dot" id="sa-connection-dot"></span>
+                        <span id="sa-connection-text">连接中...</span>
                     </span>
                     <span class="sa-status-item">
-                        模型: ${this.state.currentModel || '未选择'}
+                        模型: <span id="sa-current-model">未选择</span>
                     </span>
                     <span class="sa-status-item">
-                        工具: ${this.state.tools.filter(t => t.enabled).length} 已启用
+                        工具: <span id="sa-enabled-tools">0</span> 已启用
+                    </span>
+                    <span class="sa-status-item" style="margin-left: auto;">
+                        SerpentAI v2.0.0
                     </span>
                 </div>
             </div>
@@ -597,8 +918,48 @@ class SerpentAIApp {
         // 添加样式
         this.addStyles();
         
+        // 恢复上次的标签
+        const savedTab = localStorage.getItem('serpentai_current_tab') || 'tools';
+        this.switchTab(savedTab);
+        
         // 添加欢迎消息
-        this.addMessage('assistant', '你好！我是 SerpentAI，一个强大的 AI 助手。有什么可以帮你的吗？');
+        this.addMessage('assistant', '你好！我是 SerpentAI，一个强大的 AI 助手。有什么可以帮你的吗？\n\n快捷键：\n- Enter: 发送消息\n- Shift+Enter: 换行\n- Esc: 取消当前请求');
+    }
+    
+    /**
+     * 更新状态栏
+     */
+    updateStatusBar() {
+        const dot = this.container.querySelector('#sa-connection-dot');
+        const text = this.container.querySelector('#sa-connection-text');
+        const model = this.container.querySelector('#sa-current-model');
+        const tools = this.container.querySelector('#sa-enabled-tools');
+        
+        if (dot && text) {
+            switch (this.state.connectionStatus) {
+                case 'connected':
+                    dot.className = 'sa-dot sa-dot-green';
+                    text.textContent = `API: ${this.apiBase}`;
+                    break;
+                case 'disconnected':
+                    dot.className = 'sa-dot sa-dot-red';
+                    text.textContent = '未连接';
+                    break;
+                case 'reconnecting':
+                    dot.className = 'sa-dot sa-dot-yellow';
+                    text.textContent = '重新连接中...';
+                    break;
+            }
+        }
+        
+        if (model) {
+            const current = this.state.models.find(m => m.id === this.state.currentModel);
+            model.textContent = current ? current.name : '未选择';
+        }
+        
+        if (tools) {
+            tools.textContent = this.state.tools.filter(t => t.enabled).length;
+        }
     }
     
     /**
@@ -675,6 +1036,22 @@ class SerpentAIApp {
                 font-size: 12px;
             }
             
+            .sa-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            
+            .sa-send-btn {
+                background: #00d4ff;
+                color: #0a0a1e;
+                border-color: #00d4ff;
+                font-weight: 600;
+            }
+            
+            .sa-send-btn:hover {
+                background: #00b8e6;
+            }
+            
             .sa-body {
                 flex: 1;
                 display: flex;
@@ -743,8 +1120,37 @@ class SerpentAIApp {
             
             .sa-message-text {
                 line-height: 1.6;
-                white-space: pre-wrap;
                 word-break: break-word;
+            }
+            
+            .sa-message-text code {
+                background: #252540;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 0.9em;
+            }
+            
+            .sa-message-text pre {
+                background: #252540;
+                padding: 12px;
+                border-radius: 6px;
+                overflow-x: auto;
+                margin: 8px 0;
+            }
+            
+            .sa-message-text pre code {
+                background: none;
+                padding: 0;
+            }
+            
+            .sa-message-text a {
+                color: #00d4ff;
+                text-decoration: none;
+            }
+            
+            .sa-message-text a:hover {
+                text-decoration: underline;
             }
             
             .sa-message.sa-loading .sa-message-text::after {
@@ -789,17 +1195,6 @@ class SerpentAIApp {
             
             .sa-chat-input:focus {
                 border-color: #00d4ff;
-            }
-            
-            .sa-send-btn {
-                background: #00d4ff;
-                color: #0a0a1e;
-                border-color: #00d4ff;
-                font-weight: 600;
-            }
-            
-            .sa-send-btn:hover {
-                background: #00b8e6;
             }
             
             .sa-sidebar {
@@ -916,6 +1311,36 @@ class SerpentAIApp {
             .sa-dot-yellow { background: #ffd93d; }
             .sa-dot-red { background: #ff4757; }
             
+            /* Toast 通知样式 */
+            .sa-toast {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 6px;
+                color: white;
+                font-size: 14px;
+                z-index: 10000;
+                animation: sa-slideIn 0.3s ease;
+                max-width: 400px;
+                word-break: break-word;
+            }
+            
+            .sa-toast-success { background: #6bcb77; }
+            .sa-toast-error { background: #ff4757; }
+            .sa-toast-info { background: #00d4ff; }
+            .sa-toast-warning { background: #ffd93d; color: #000; }
+            
+            @keyframes sa-slideIn {
+                from { transform: translateX(100px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            
+            @keyframes sa-slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100px); opacity: 0; }
+            }
+            
             /* 响应式设计 */
             @media (max-width: 1024px) {
                 .sa-sidebar {
@@ -940,25 +1365,9 @@ class SerpentAIApp {
     }
     
     /**
-     * 清空聊天记录
-     */
-    clearChat() {
-        if (!confirm('确定要清空聊天记录吗？')) return;
-        
-        this.state.messages = [];
-        this.state.currentConversation = null;
-        
-        const messagesEl = this.container.querySelector('.sa-messages');
-        if (messagesEl) messagesEl.innerHTML = '';
-        
-        this.addMessage('assistant', '聊天记录已清空。有什么可以帮你的吗？');
-        this.showToast('聊天记录已清空', 'info');
-    }
-    
-    /**
      * 显示 toast 通知
      * @param {string} message - 通知消息
-     * @param {string} type - 类型：success, error, info
+     * @param {string} type - 类型：success, error, info, warning
      */
     showToast(message, type = 'info') {
         // 移除已有的 toast
@@ -968,35 +1377,6 @@ class SerpentAIApp {
         const toast = document.createElement('div');
         toast.className = `sa-toast sa-toast-${type}`;
         toast.textContent = message;
-        toast.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            border-radius: 6px;
-            color: white;
-            font-size: 14px;
-            z-index: 10000;
-            animation: sa-slideIn 0.3s ease;
-            background: ${type === 'success' ? '#6bcb77' : type === 'error' ? '#ff4757' : '#00d4ff'};
-        `;
-        
-        // 添加动画样式
-        if (!document.querySelector('#sa-toast-style')) {
-            const style = document.createElement('style');
-            style.id = 'sa-toast-style';
-            style.textContent = `
-                @keyframes sa-slideIn {
-                    from { transform: translateX(100px); opacity: 0; }
-                    to { transform: translateX(0); opacity: 1; }
-                }
-                @keyframes sa-slideOut {
-                    from { transform: translateX(0); opacity: 1; }
-                    to { transform: translateX(100px); opacity: 0; }
-                }
-            `;
-            document.head.appendChild(style);
-        }
         
         document.body.appendChild(toast);
         
@@ -1048,7 +1428,10 @@ class SerpentAIApp {
                     document.head.appendChild(style);
                 }
                 
-                this.container.querySelector('.sa-messages').appendChild(loader);
+                const messagesEl = this.container.querySelector('.sa-messages');
+                if (messagesEl) {
+                    messagesEl.appendChild(loader);
+                }
             }
         } else {
             if (loader) loader.remove();
@@ -1056,19 +1439,23 @@ class SerpentAIApp {
     }
     
     /**
-     * 封装 fetch 请求，自动处理错误
+     * 封装 fetch 请求，自动处理超时
      * @param {string} endpoint - API 端点
      * @param {Object} options - fetch 选项
      * @returns {Promise<Object>} 响应数据
      */
-    async fetchWithError(endpoint, options = {}) {
+    async fetchWithTimeout(endpoint, options = {}) {
         const url = endpoint.startsWith('http') ? endpoint : `${this.apiBase}${endpoint}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
         
         const defaultOptions = {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
-            }
+            },
+            signal: controller.signal
         };
         
         const mergedOptions = {
@@ -1080,14 +1467,37 @@ class SerpentAIApp {
             }
         };
         
-        const resp = await fetch(url, mergedOptions);
-        
-        if (!resp.ok) {
-            const errorData = await resp.json().catch(() => ({}));
-            throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
+        try {
+            const resp = await fetch(url, mergedOptions);
+            
+            clearTimeout(timeoutId);
+            
+            if (!resp.ok) {
+                const errorData = await resp.json().catch(() => ({}));
+                throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
+            }
+            
+            return resp.json();
+        } catch (e) {
+            clearTimeout(timeoutId);
+            
+            if (e.name === 'AbortError') {
+                const timeoutError = new Error(`请求超时 (${this.timeout}ms)`);
+                timeoutError.name = 'TimeoutError';
+                throw timeoutError;
+            }
+            
+            throw e;
         }
-        
-        return resp.json();
+    }
+    
+    /**
+     * 延迟函数
+     * @param {number} ms - 延迟毫秒数
+     * @returns {Promise}
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
     
     /**
@@ -1096,6 +1506,7 @@ class SerpentAIApp {
      * @returns {string} 转义后文本
      */
     escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
@@ -1110,13 +1521,16 @@ class SerpentAIApp {
             this.components.voiceWidget.destroy();
         }
         
-        // 移除事件监听器
-        // ...（根据实际需要清理）
+        // 取消所有未完成的请求
+        this.controllers.forEach(controller => controller.abort());
+        this.controllers.clear();
         
         // 清空容器
         if (this.container) {
             this.container.innerHTML = '';
         }
+        
+        console.log('SerpentAIApp 已销毁');
     }
 }
 

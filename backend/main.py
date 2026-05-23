@@ -147,7 +147,27 @@ app.add_middleware(
 
 # ==================== 路由配置 ====================
 
-@app.get("/")
+@app.get(
+    "/",
+    tags=["System"],
+    summary="根路由 - API信息",
+    description="""返回API基本信息，包括名称、版本、描述和文档链接。
+    
+    用于快速检查API是否运行正常。
+    
+    Returns:
+        dict: 包含API名称、版本、描述、文档链接和状态的信息
+    
+    Example:
+        {
+            "name": "SerpentAI",
+            "version": "0.1.0-alpha",
+            "description": "终极自托管全功能AI智能体框架",
+            "documentation": "/api/docs",
+            "status": "running"
+        }
+    """
+)
 async def root():
     """根路由 - API信息"""
     return {
@@ -159,7 +179,33 @@ async def root():
         "memory_system": "enabled（四层记忆：瞬时、短期、长期、归档）"
     }
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["System"],
+    summary="健康检查",
+    description="""检查API服务及其依赖组件的健康状态。
+    
+    返回数据库、记忆系统等组件的状态信息。
+    如果所有组件都正常，status为'healthy'；否则为'degraded'。
+    
+    Returns:
+        dict: 包含以下字段的字典:
+            - status (str): 整体状态 ('healthy' 或 'degraded')
+            - version (str): API版本
+            - environment (str): 运行环境
+            - database (dict): 数据库连接状态
+            - memory (dict): 记忆系统统计信息
+    
+    Example:
+        {
+            "status": "healthy",
+            "version": "0.1.0-alpha",
+            "environment": "development",
+            "database": {"sqlite": true, "neo4j": true},
+            "memory": {"instant": 5, "short_term": 100}
+        }
+    """
+)
 async def health_check():
     """
     健康检查端点（包含记忆系统状态）
@@ -186,7 +232,24 @@ async def health_check():
     
     return health_status
 
-@app.get("/api/models")
+@app.get(
+    "/api/models",
+    tags=["Models"],
+    summary="列出所有支持的模型",
+    description="""返回所有已配置的AI模型列表。
+    
+    包括OpenAI、Anthropic、Llama等适配的模型。
+    
+    Returns:
+        dict: 包含模型列表和数量的字典
+    
+    Example:
+        {
+            "models": ["gpt-4o", "gpt-3.5-turbo", "claude-3-opus"],
+            "count": 3
+        }
+    """
+)
 async def list_models():
     """
     列出所有支持的模型
@@ -197,10 +260,59 @@ async def list_models():
         "count": len(list_supported_models())
     }
 
-@app.post("/api/chat")
+@app.post(
+    "/api/chat",
+    tags=["Chat"],
+    summary="聊天接口",
+    description="""与AI模型进行对话（集成四层记忆系统）。
+    
+    流程:
+    1. 从记忆系统召回相关上下文（瞬时、短期、长期记忆）
+    2. 将上下文与当前消息合并
+    3. 调用指定的AI模型生成响应
+    4. 将用户消息和AI响应保存到记忆系统
+    
+    Args:
+        request (Request): 包含以下字段的JSON请求体:
+            - model (str): 模型名称，默认'gpt-3.5-turbo'
+            - messages (list): 消息列表，每个消息包含'role'和'content'
+        session_id (str): 会话ID（通过query parameter传递）
+    
+    Returns:
+        dict: 包含以下字段的字典:
+            - response (str): AI生成的响应内容
+            - model (str): 使用的模型名称
+            - usage (dict): Token使用统计
+            - cost (float): 本次请求的成本（美元）
+            - latency_ms (int): 响应延迟（毫秒）
+            - context_used (int): 召回的上下文消息数量
+    
+    Raises:
+        HTTPException: 400如果消息列表为空；500如果处理失败
+    
+    Example Request:
+        POST /api/chat?session_id=user123
+        {
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "user", "content": "Hello!"}
+            ]
+        }
+    
+    Example Response:
+        {
+            "response": "Hello! How can I help you?",
+            "model": "gpt-4o",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+            "cost": 0.0001,
+            "latency_ms": 500,
+            "context_used": 3
+        }
+    """
+)
 async def chat(
     request: Request,
-    session_id: str = Query(..., description="会话ID")
+    session_id: str = Query(..., description="会话ID（用于记忆系统关联）")
 ):
     """
     聊天接口（集成记忆系统）
@@ -287,7 +399,41 @@ async def chat(
 
 # ==================== 记忆系统接口 ====================
 
-@app.post("/api/memory/add")
+@app.post(
+    "/api/memory/add",
+    tags=["Memory"],
+    summary="添加消息到记忆系统",
+    description="""手动添加消息到指定会话的记忆系统。
+    
+    可以选择消息角色（user/assistant/system）。
+    消息会被存储到瞬时记忆层。
+    
+    Args:
+        request (Request): 包含以下字段的JSON请求体:
+            - role (str): 消息角色，默认'user'
+            - content (str): 消息内容（必填）
+        session_id (str): 会话ID（通过query parameter传递）
+    
+    Returns:
+        dict: 操作结果状态
+    
+    Raises:
+        HTTPException: 400如果内容为空；500如果处理失败
+    
+    Example Request:
+        POST /api/memory/add?session_id=user123
+        {
+            "role": "user",
+            "content": "Remember this information"
+        }
+    
+    Example Response:
+        {
+            "status": "success",
+            "message": "已添加到记忆系统"
+        }
+    """
+)
 async def add_to_memory(
     request: Request,
     session_id: str = Query(..., description="会话ID")
@@ -323,7 +469,45 @@ async def add_to_memory(
         logger.error(f"添加消息到记忆失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/memory/recall")
+@app.post(
+    "/api/memory/recall",
+    tags=["Memory"],
+    summary="从记忆系统召回消息",
+    description="""从四层记忆系统中召回相关消息。
+    
+    支持按查询语义搜索，可控制召回哪些记忆层。
+    默认召回瞬时、短期、长期记忆，不包含归档记忆。
+    
+    Args:
+        request (Request): 包含以下字段的JSON请求体:
+            - query (str, optional): 搜索查询（语义匹配）
+            - limit (int): 最大召回数量，默认10
+            - include_instant (bool): 是否包含瞬时记忆，默认True
+            - include_short_term (bool): 是否包含短期记忆，默认True
+            - include_long_term (bool): 是否包含长期记忆，默认True
+            - include_archive (bool): 是否包含归档记忆，默认False
+        session_id (str): 会话ID（通过query parameter传递）
+    
+    Returns:
+        dict: 包含召回结果列表和数量的字典
+    
+    Example Request:
+        POST /api/memory/recall?session_id=user123
+        {
+            "query": "previous discussion about AI",
+            "limit": 5,
+            "include_long_term": true
+        }
+    
+    Example Response:
+        {
+            "results": [
+                {"role": "user", "content": "...", "timestamp": "..."}
+            ],
+            "count": 1
+        }
+    """
+)
 async def recall_from_memory(
     request: Request,
     session_id: str = Query(..., description="会话ID")
@@ -368,7 +552,36 @@ async def recall_from_memory(
 
 # ==================== 工具系统接口 ====================
 
-@app.get("/api/tools")
+@app.get(
+    "/api/tools",
+    tags=["Tools"],
+    summary="列出所有可用工具",
+    description="""列出所有已注册的工具。
+    
+    支持按分类和类型过滤。
+    返回工具名称、描述、参数等信息。
+    
+    Args:
+        category (str, optional): 按分类过滤（如 'file', 'system'）
+        tool_type (str, optional): 按类型过滤（'mcp'/'builtin'/'custom'）
+    
+    Returns:
+        dict: 包含工具列表和数量的字典
+    
+    Example Request:
+        GET /api/tools?category=file&tool_type=builtin
+    
+    Example Response:
+        {
+            "tools": [
+                {"name": "fs_read", "description": "...", ...}
+            ],
+            "count": 1,
+            "category": "file",
+            "type": "builtin"
+        }
+    """
+)
 async def list_tools(
     category: Optional[str] = Query(None, description="按分类过滤"),
     tool_type: Optional[str] = Query(None, description="按类型过滤(mcp/builtin/custom)")
@@ -393,7 +606,41 @@ async def list_tools(
         logger.error(f"列出工具失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/tools/call")
+@app.post(
+    "/api/tools/call",
+    tags=["Tools"],
+    summary="调用工具",
+    description="""调用指定的工具并返result。
+    
+    工具会先查找预编译的优化版本，找不到再执行原始工具。
+    支持内置工具、MCP工具、自定义工具。
+    
+    Args:
+        request (Request): 包含以下字段的JSON请求体:
+            - tool_name (str): 工具名称（必填）
+            - arguments (dict): 工具参数（可选）
+    
+    Returns:
+        dict: 包含执行结果的字典
+    
+    Raises:
+        HTTPException: 400如果tool_name为空；500如果执行失败
+    
+    Example Request:
+        POST /api/tools/call
+        {
+            "tool_name": "fs_read",
+            "arguments": {"path": "/test.txt"}
+        }
+    
+    Example Response:
+        {
+            "status": "success",
+            "tool_name": "fs_read",
+            "result": {"content": "file content"}
+        }
+    """
+)
 async def call_tool(request: Request):
     """
     调用工具
@@ -423,7 +670,24 @@ async def call_tool(request: Request):
         logger.error(f"调用工具失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/tools/categories")
+@app.get(
+    "/api/tools/categories",
+    tags=["Tools"],
+    summary="列出所有工具分类",
+    description="""返回所有已注册工具的分类列表。
+    
+    分类用于组织工具，如 'file', 'system', 'web', 'math' 等。
+    
+    Returns:
+        dict: 包含分类列表和数量的字典
+    
+    Example Response:
+        {
+            "categories": ["file", "system", "web"],
+            "count": 3
+        }
+    """
+)
 async def list_tool_categories():
     """
     列出所有工具分类
@@ -441,7 +705,33 @@ async def list_tool_categories():
         logger.error(f"列出工具分类失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/tools/search")
+@app.get(
+    "/api/tools/search",
+    tags=["Tools"],
+    summary="搜索工具",
+    description="""搜索已注册的工具（按名称、描述模糊匹配）。
+    
+    用于在不知道准确工具名称时查找工具。
+    
+    Args:
+        query (str): 搜索关键词（通过query parameter传递）
+    
+    Returns:
+        dict: 包含匹配结果列表和数量的字典
+    
+    Example Request:
+        GET /api/tools/search?query=read
+    
+    Example Response:
+        {
+            "query": "read",
+            "results": [
+                {"name": "fs_read", "description": "..."}
+            ],
+            "count": 1
+        }
+    """
+)
 async def search_tools(
     query: str = Query(..., description="搜索关键词")
 ):
@@ -464,7 +754,30 @@ async def search_tools(
         logger.error(f"搜索工具失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/tools/optimized-prompt")
+@app.post(
+    "/api/tools/optimized-prompt",
+    tags=["Tools"],
+    summary="获取优化后的工具提示词",
+    description="""获取Token优化后的工具提示词。
+    
+    使用预编译（precompilation）和蒸馏（distillation）技术，
+    可减少80%的Token消耗。
+    
+    返回两种优化提示词：
+    - precompiled_prompt: 预编译版本（使用工具ID映射）
+    - distilled_prompt: 蒸馏版本（精简工具描述）
+    
+    Returns:
+        dict: 包含两种优化提示词的字典
+    
+    Example Response:
+        {
+            "precompiled_prompt": "...",
+            "distilled_prompt": "...",
+            "optimization": "Tool precompilation + distillation reduces Token consumption by 80%"
+        }
+    """
+)
 async def get_optimized_tool_prompt():
     """
     获取优化后的工具提示词（Token优化）
@@ -488,7 +801,27 @@ async def get_optimized_tool_prompt():
         logger.error(f"获取优化提示词失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/memory/stats")
+@app.get(
+    "/api/memory/stats",
+    tags=["Memory"],
+    summary="获取记忆系统统计信息",
+    description="""返回记忆系统的详细统计信息。
+    
+    包括各记忆层的消息数量、存储使用情况等。
+    
+    Returns:
+        dict: 记忆系统统计信息
+    
+    Example Response:
+        {
+            "instant_count": 5,
+            "short_term_count": 100,
+            "long_term_count": 500,
+            "archive_count": 1000,
+            "total_tokens": 50000
+        }
+    """
+)
 async def get_memory_stats():
     """
     获取记忆系统统计信息
@@ -506,7 +839,31 @@ async def get_memory_stats():
         logger.error(f"获取记忆统计失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/memory/clear")
+@app.delete(
+    "/api/memory/clear",
+    tags=["Memory"],
+    summary="清空记忆",
+    description="""清空指定会话或所有会话的记忆。
+    
+    可以仅清空特定会话，或清空所有会话的记忆。
+    清空操作会删除瞬时、短期、长期记忆（归档记忆可选）。
+    
+    Args:
+        session_id (str, optional): 会话ID（不提供则清空所有）
+    
+    Returns:
+        dict: 操作结果状态
+    
+    Example Request:
+        DELETE /api/memory/clear?session_id=user123
+    
+    Example Response:
+        {
+            "status": "success",
+            "message": "已清空会话 user123 的记忆"
+        }
+    """
+)
 async def clear_memory(
     session_id: Optional[str] = Query(None, description="会话ID（不提供则清空所有）")
 ):

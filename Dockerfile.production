@@ -1,0 +1,187 @@
+# SerpentAI Production Dockerfile
+# Multi-stage build with security best practices
+#
+# Usage:
+#   docker build -t serpent-ai:latest -f Dockerfile.production .
+#
+# Security scan:
+#   docker scan serpent-ai:latest
+#   trivy image serpent-ai:latest
+
+# ==================== Stage 1: Builder ====================
+FROM python:3.12-slim-bookworm AS builder
+
+# Set environment variables for reproducible builds
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for building
+RUN useradd --create-home --shell /bin/bash --uid 1000 builder
+WORKDIR /build
+
+# Install Python dependencies as builder user
+COPY --chown=builder:builder requirements.txt requirements-optional.txt* ./
+USER builder
+
+# Upgrade pip and install dependencies
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    (pip install --no-cache-dir -r requirements-optional.txt 2>/dev/null || true)
+
+# ==================== Stage 2: Runtime ====================
+FROM python:3.12-slim-bookworm AS runtime
+
+# Metadata labels (for security scanning)
+LABEL org.opencontainers.image.title="SerpentAI" \
+      org.opencontainers.image.description="Ultimate Self-hosted AI Agent Framework" \
+      org.opencontainers.image.authors="SerpentAI Team" \
+      org.opencontainers.image.version="0.1.0-alpha" \
+      org.opencontainers.image.created="2024-01-01T00:00:00Z" \
+      org.opencontainers.image.source="https://github.com/serpent-ai/serpent-ai" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.security-email="security@serpent-ai.com"
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # Production defaults
+    DEBUG=false \
+    LOG_LEVEL=WARNING \
+    ENVIRONMENT=production
+
+# Install runtime dependencies only (no build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Runtime dependencies
+    curl \
+    # Security: remove setuid/setgid binaries (optional, for hardened images)
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for running the application
+RUN useradd --create-home --shell /bin/bash --uid 1000 serpent
+WORKDIR /app
+
+# Copy Python dependencies from builder stage
+COPY --from=builder --chown=serpent:serpent /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder --chown=serpent:serpent /usr/local/bin /usr/local/bin
+
+# Copy application files
+COPY --chown=serpent:serpent . .
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/data/chroma /app/backend/logs /app/models /app/config && \
+    chown -R serpent:serpent /app/
+
+# Switch to non-root user
+USER serpent
+
+# Expose application port
+EXPOSE 8000
+
+# Health check (using curl for reliability)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f -s -o /dev/null http://localhost:8000/health || exit 1
+
+# Run security scan hints (for CI/CD integration)
+# docker run --rm serpent-ai:latest python -c "import sys; sys.exit(0)"
+
+# Default command: run with Gunicorn for production
+# Use 4 workers, bind to all interfaces
+CMD ["gunicorn", \
+      "--bind", "0.0.0.0:8000", \
+      "--workers", "4", \
+      "--worker-class", "uvicorn.workers.UvicornWorker", \
+      "--timeout", "120", \
+      "--keep-alive", "5", \
+      "--max-requests", "1000", \
+      "--max-requests-jitter", "50", \
+      "--log-level", "warning", \
+      "backend.main:app"]
+
+# ==================== Stage 3: Development (Optional) ====================
+FROM runtime AS development
+
+USER root
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
+
+USER serpent
+
+# Override command for development
+CMD ["python", "start_server.py"]
+
+# ==================== Build Arguments (for customization) ====================
+# Usage: docker build --build-arg VERSION=1.0.0 -t serpent-ai:1.0.0 .
+
+ARG VERSION=0.1.0-alpha
+ARG BUILD_DATE
+ARG VCS_REF
+
+LABEL org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.revision=$VCS_REF
+
+# ==================== Security Hardening (Optional) ====================
+# Uncomment for additional security:
+
+# Remove package manager (reduces attack surface)
+# RUN rm -rf /usr/bin/apt-get /usr/bin/dpkg /usr/bin/dpkg-deb
+
+# Run as unprivileged user (already done above with USER serpent)
+
+# Use read-only root filesystem (requires tmpfs for writable paths)
+# docker run --read-only --tmpfs /tmp --tmpfs /app/backend/logs serpent-ai:latest
+
+# Drop all Linux capabilities
+# docker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE serpent-ai:latest
+
+# Use seccomp profile
+# docker run --security-opt seccomp=seccomp.json serpent-ai:latest
+
+# Scan for vulnerabilities in CI/CD
+# Add to your CI pipeline:
+#   - name: Scan Docker image
+#     uses: docker://aquasecurity/trivy:latest
+#     with:
+#       image-ref: 'serpent-ai:latest'
+#       format: 'table'
+#       exit-code: '1'
+#       ignore-unfixed: true
+
+# ==================== Docker Compose Override ====================
+# For production deployment, use:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# ==================== .dockerignore (Create this file) ====================
+# .git
+# .gitignore
+# *.md
+# docs/
+# tests/
+# .pytest_cache/
+# .coverage
+# htmlcov/
+# *.pyc
+# __pycache__/
+# .vscode/
+# .idea/
+# *.log
+# .env
+# .env.*
+# models/  # Uncomment if models are downloaded at runtime
+# data/   # Uncomment if data should persist via volume
