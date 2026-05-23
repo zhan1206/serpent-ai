@@ -50,20 +50,6 @@ async def api_sessions():
     return {"sessions": []}
 
 
-@router.post("/api/chat")
-async def api_chat(request: Request):
-    try:
-        data = await request.json()
-        message = data.get("message", "")
-        session_id = data.get("session_id")
-        
-        # TODO: 接入AI处理
-        response = {"message": f"Echo: {message}", "session_id": session_id}
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/api/memory/stats")
 async def api_memory_stats():
     return {
