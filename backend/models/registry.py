@@ -172,4 +172,12 @@ def init_default_models():
     except Exception as e:
         logger.warning(f"Llama 模型初始化失败: {e}")
     
+    # 如果没有注册任何模型，注册模拟适配器作为备用
+    if not registry.list_models():
+        logger.warning("没有可用的真实模型，注册模拟适配器作为备用")
+        from models.mock_adapter import MockAdapter
+        mock_adapter = MockAdapter()
+        registry.register("mock", mock_adapter, set_as_default=True)
+        logger.info("已注册模拟适配器（mock）- 用于测试和演示")
+    
     logger.info(f"模型注册表初始化完成，已注册 {len(registry.list_models())} 个模型")
