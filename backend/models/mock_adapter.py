@@ -8,6 +8,7 @@ import json
 from typing import List, Dict, Any, Optional, Generator
 
 from models.base_model import BaseModelAdapter, ModelResponse, Message
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +42,16 @@ class MockAdapter(BaseModelAdapter):
         logger.info("模拟适配器初始化完成")
         return True
     
-    def generate(
+    async def generate(
         self,
         messages: List[Message],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
+        tools: Optional[List[Dict[str, Any]] = None,
         stream: bool = False
     ) -> ModelResponse:
         """
-        生成响应（模拟）
+        生成响应（模拟，异步实现）
         
         Args:
             messages: 对话历史
@@ -79,7 +80,7 @@ class MockAdapter(BaseModelAdapter):
         if stream:
             return self._generate_streaming(user_message, temperature)
         else:
-            return self._generate_non_streaming(user_message, temperature, start_time)
+            return await self._generate_non_streaming(user_message, temperature, start_time)
     
     def _generate_non_streaming(
         self,
@@ -96,13 +97,28 @@ class MockAdapter(BaseModelAdapter):
             start_time: 开始时间
             
         Returns:
+        async def _generate_non_streaming(
+        self,
+        user_message: str,
+        temperature: float,
+        start_time: float
+    ) -> ModelResponse:
+        """
+        非流式生成（模拟，异步）
+        
+        Args:
+            user_message: 用户消息
+            temperature: 温度参数
+            start_time: 开始时间
+            
+        Returns:
             ModelResponse: 模拟响应
         """
         # 模拟响应内容
         response_content = self._generate_mock_response(user_message)
         
         # 模拟延迟
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
         
         # 计算Token数（估算）
         input_tokens = len(user_message) // 2
@@ -127,13 +143,13 @@ class MockAdapter(BaseModelAdapter):
             }
         )
     
-    def _generate_streaming(
+    async def _generate_streaming(
         self,
         user_message: str,
         temperature: float
-    ) -> Generator[str, None, None]:
+    ) -> AsyncGenerator[str, None]:
         """
-        流式生成（模拟）
+        流式生成（模拟，异步生成器）
         
         Args:
             user_message: 用户消息
@@ -148,7 +164,7 @@ class MockAdapter(BaseModelAdapter):
         # 按字符流式输出
         for char in response_content:
             yield char
-            time.sleep(0.01)  # 模拟延迟
+            await asyncio.sleep(0.01)  # 模拟延迟
     
     def _generate_mock_response(self, user_message: str) -> str:
         """
