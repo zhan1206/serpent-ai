@@ -188,9 +188,9 @@ def create_adapter(model_name: str, config: Optional[Dict[str, Any]] = None) -> 
     Raises:
         ValueError: 不支持的模型
     """
-    from models.openai_adapter import OpenAIAdapter
-    from models.anthropic_adapter import AnthropicAdapter
-    from models.llama_adapter import LlamaAdapter
+    from backend.models.openai_adapter import OpenAIAdapter
+    from backend.models.anthropic_adapter import AnthropicAdapter
+    from backend.models.llama_adapter import LlamaAdapter
     
     model_name_lower = model_name.lower()
     

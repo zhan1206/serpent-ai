@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Callable, Awaitable
 from datetime import datetime
 import logging
-from core.logging_config import get_logger
+from backend.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

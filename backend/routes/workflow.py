@@ -9,9 +9,9 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from workflow.engine import WorkflowEngine, Workflow, WorkflowNode, Edge, WorkflowStatus, NodeType, NodeStatus
-from workflow.executor import WorkflowExecutor
-from workflow.editor import WorkflowEditor
+from backend.workflow.engine import WorkflowEngine, Workflow, WorkflowNode, Edge, WorkflowStatus, NodeType, NodeStatus
+from backend.workflow.executor import WorkflowExecutor
+from backend.workflow.editor import WorkflowEditor
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ async def add_node(request: AddNodeRequest) -> Dict:
     )
     
     # 设置配置
-    from workflow.engine import NodeConfig
+    from backend.workflow.engine import NodeConfig
     node.config = NodeConfig.from_dict(request.config)
     
     if not engine.add_node(request.workflow_id, node):
@@ -259,7 +259,7 @@ async def update_node(request: UpdateNodeRequest) -> Dict:
     if request.position_y is not None:
         updates["position_y"] = request.position_y
     if request.config is not None:
-        from workflow.engine import NodeConfig
+        from backend.workflow.engine import NodeConfig
         updates["config"] = NodeConfig.from_dict(request.config)
     if request.inputs is not None:
         updates["inputs"] = request.inputs

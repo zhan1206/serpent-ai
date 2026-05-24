@@ -213,7 +213,7 @@ async def voice_chat(request: VoiceChatRequest):
             return {"error": "未能识别语音"}
         
         # 调用 AI
-        from routes.agent import chat_with_agent
+        from backend.routes.agent import chat_with_agent
         
         chat_result = await chat_with_agent(
             message=text,

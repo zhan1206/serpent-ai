@@ -18,7 +18,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from datetime import datetime
 
-from core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 

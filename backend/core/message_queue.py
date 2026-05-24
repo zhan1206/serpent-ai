@@ -370,7 +370,7 @@ class MessageQueue:
         """尝试连接 Redis，失败则降级"""
         try:
             import redis
-            from core.config import settings
+            from backend.core.config import settings
             client = redis.Redis(
                 host=getattr(settings, "REDIS_HOST", "localhost"),
                 port=getattr(settings, "REDIS_PORT", 6379),

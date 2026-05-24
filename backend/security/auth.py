@@ -15,7 +15,7 @@ from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta
 import logging
 
-from core.encryption import encrypt_data, decrypt_data, hash_password, verify_password
+from backend.core.encryption import encrypt_data, decrypt_data, hash_password, verify_password
 
 logger = logging.getLogger(__name__)
 

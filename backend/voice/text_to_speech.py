@@ -16,8 +16,8 @@ from pydantic import BaseModel, Field
 import aiohttp
 import httpx
 
-from core.config import get_settings
-from core.logging_config import get_logger
+from backend.core.config import get_settings
+from backend.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()

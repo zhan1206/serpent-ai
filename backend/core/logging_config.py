@@ -10,7 +10,7 @@ from typing import Any, Dict
 import json
 from datetime import datetime
 
-from core.config import settings
+from backend.core.config import settings
 
 class InterceptHandler(logging.Handler):
     """

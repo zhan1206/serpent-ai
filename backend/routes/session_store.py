@@ -92,7 +92,7 @@ class SessionStore:
     def _init_sqlite_tables(self):
         """初始化SQLite表（如果数据库可用）"""
         try:
-            from core.database import engine
+            from backend.core.database import engine
             with engine.connect() as conn:
                 from sqlalchemy import text as sa_text
                 conn.execute(sa_text("""
@@ -135,7 +135,7 @@ class SessionStore:
     def _load_from_db(self):
         """从数据库加载已有会话"""
         try:
-            from core.database import engine
+            from backend.core.database import engine
             from sqlalchemy import text as sa_text
             import json
             with engine.connect() as conn:
@@ -171,7 +171,7 @@ class SessionStore:
             return
         try:
             import json
-            from core.database import engine
+            from backend.core.database import engine
             from sqlalchemy import text as sa_text
             with engine.connect() as conn:
                 conn.execute(sa_text("""
@@ -194,7 +194,7 @@ class SessionStore:
             return
         try:
             import json
-            from core.database import engine
+            from backend.core.database import engine
             from sqlalchemy import text as sa_text
             with engine.connect() as conn:
                 conn.execute(sa_text("""
@@ -217,7 +217,7 @@ class SessionStore:
         if not self._db_available:
             return
         try:
-            from core.database import engine
+            from backend.core.database import engine
             from sqlalchemy import text as sa_text
             with engine.connect() as conn:
                 conn.execute(sa_text("DELETE FROM chat_messages WHERE session_id = :sid"), {"sid": session_id})

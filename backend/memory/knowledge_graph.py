@@ -524,7 +524,7 @@ class KnowledgeGraph:
     def from_config(cls) -> "KnowledgeGraph":
         """尝试读取配置连接 Neo4j，失败则降级"""
         try:
-            from core.database import get_neo4j_driver
+            from backend.core.database import get_neo4j_driver
             driver = get_neo4j_driver()
             if driver is not None:
                 return cls(neo4j_driver=driver)

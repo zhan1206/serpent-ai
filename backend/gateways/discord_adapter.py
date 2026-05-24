@@ -7,7 +7,7 @@ import asyncio
 import aiohttp
 import logging
 import json
-from core.logging_config import get_logger
+from backend.core.logging_config import get_logger
 from . import PlatformAdapter, Message, Response
 
 logger = get_logger(__name__)

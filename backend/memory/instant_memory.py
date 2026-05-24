@@ -8,7 +8,7 @@ from collections import deque
 import threading
 from datetime import datetime
 
-from models.base_model import Message
+from backend.models.base_model import Message
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +191,7 @@ def get_instant_memory() -> InstantMemory:
     if _instant_memory_instance is None:
         with _instant_memory_lock:
             if _instant_memory_instance is None:
-                from core.config import settings
+                from backend.core.config import settings
                 _instant_memory_instance = InstantMemory(
                     max_messages=settings.MAX_INSTANT_MEMORIES
                 )

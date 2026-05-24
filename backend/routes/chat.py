@@ -11,9 +11,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from models.base_model import Message, ModelResponse
-from models.registry import ModelRegistry, get_global_registry
-from routes.session_store import get_session_store
+from backend.models.base_model import Message, ModelResponse
+from backend.models.registry import ModelRegistry, get_global_registry
+from backend.routes.session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 

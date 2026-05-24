@@ -6,7 +6,7 @@ import time
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator
-from models.base_model import BaseModelAdapter, ModelResponse, Message
+from backend.models.base_model import BaseModelAdapter, ModelResponse, Message
 
 logger = logging.getLogger(__name__)
 

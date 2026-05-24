@@ -11,8 +11,8 @@ import sqlite3
 import json
 import hashlib
 
-from core.config import settings
-from core.database import get_db
+from backend.core.config import settings
+from backend.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class ArchiveMemory:
     def _init_table(self):
         """初始化数据库表"""
         try:
-            from core.database import engine, Base
+            from backend.core.database import engine, Base
             Base.metadata.create_all(bind=engine)
             logger.info("归档记忆表初始化完成")
         except Exception as e:

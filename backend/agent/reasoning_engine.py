@@ -11,7 +11,7 @@ from enum import Enum
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from models.base_model import Message, create_adapter
+from backend.models.base_model import Message, create_adapter
 
 logger = logging.getLogger(__name__)
 

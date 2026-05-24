@@ -22,7 +22,7 @@ from typing import Generator, Any
 import logging
 from pathlib import Path
 
-from core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def get_db() -> Generator:
 def init_db():
     """初始化数据库表"""
     # Use the locally defined Base instead of importing from non-existent module
-    from core.database import Base
+    from backend.core.database import Base
     logger.info("正在创建数据库表...")
     try:
         Base.metadata.create_all(bind=engine)

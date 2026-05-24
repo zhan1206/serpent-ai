@@ -76,7 +76,7 @@ class AccountManager:
     def _init_encryptor(self):
         """初始化加密器"""
         try:
-            from core.encryption import EncryptionManager
+            from backend.core.encryption import EncryptionManager
             self._encryptor = EncryptionManager()
             self._encryptor.initialize(self._encryption_key)
         except Exception as e:

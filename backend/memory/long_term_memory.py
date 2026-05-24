@@ -8,8 +8,8 @@ from datetime import datetime
 import threading
 import hashlib
 
-from core.config import settings
-from core.database import get_neo4j_driver, init_neo4j_constraints
+from backend.core.config import settings
+from backend.core.database import get_neo4j_driver, init_neo4j_constraints
 
 logger = logging.getLogger(__name__)
 

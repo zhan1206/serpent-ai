@@ -5,7 +5,7 @@ SerpentAI 模型注册表
 import logging
 from typing import Dict, Any, Optional, List
 
-from models.base_model import BaseModelAdapter, Message
+from backend.models.base_model import BaseModelAdapter, Message
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ def init_default_models():
     
     try:
         # 尝试注册 OpenAI 模型
-        from models.openai_adapter import OpenAIAdapter
+        from backend.models.openai_adapter import OpenAIAdapter
         openai_adapter = OpenAIAdapter()
         registry.register("gpt-4", openai_adapter)
         registry.register("gpt-3.5-turbo", openai_adapter)
@@ -158,7 +158,7 @@ def init_default_models():
     
     try:
         # 尝试注册 Anthropic 模型
-        from models.anthropic_adapter import AnthropicAdapter
+        from backend.models.anthropic_adapter import AnthropicAdapter
         anthropic_adapter = AnthropicAdapter()
         registry.register("claude-3", anthropic_adapter)
     except Exception as e:
@@ -166,7 +166,7 @@ def init_default_models():
     
     try:
         # 尝试注册本地 Llama 模型
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         llama_adapter = LlamaAdapter("llama-3-8b")
         # 调用 initialize() 初始化模型
         if llama_adapter.initialize():
@@ -180,7 +180,7 @@ def init_default_models():
     # 如果没有注册任何模型，注册模拟适配器作为备用
     if not registry.list_models():
         logger.warning("没有可用的真实模型，注册模拟适配器作为备用")
-        from models.mock_adapter import MockAdapter
+        from backend.models.mock_adapter import MockAdapter
         mock_adapter = MockAdapter()
         registry.register("mock", mock_adapter, set_as_default=True)
         logger.info("已注册模拟适配器（mock）- 用于测试和演示")

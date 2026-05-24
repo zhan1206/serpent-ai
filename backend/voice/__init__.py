@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 # 配置日志
-from core.logging_config import get_logger
+from backend.core.logging_config import get_logger
 logger = get_logger(__name__)
 
 # 导出语音配置

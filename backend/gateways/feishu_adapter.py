@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, Callable, Awaitable, List
 from datetime import datetime
 import logging
 import aiohttp
-from core.logging_config import get_logger
+from backend.core.logging_config import get_logger
 from . import PlatformAdapter, Message, Response
 
 logger = get_logger(__name__)

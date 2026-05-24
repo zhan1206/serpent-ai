@@ -16,7 +16,7 @@ from .task_scheduler import TaskScheduler, Task, TaskStatus
 from .tool_coordinator import ToolCoordinator, ToolCallResult
 from .self_evolution import SelfEvolution, EvolutionResult
 
-from models.base_model import Message, create_adapter
+from backend.models.base_model import Message, create_adapter
 from memory import get_memory_manager
 
 logger = logging.getLogger(__name__)

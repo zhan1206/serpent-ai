@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import hashlib
 
-from models.base_model import Message, create_adapter
+from backend.models.base_model import Message, create_adapter
 
 logger = logging.getLogger(__name__)
 

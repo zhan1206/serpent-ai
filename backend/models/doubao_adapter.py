@@ -7,7 +7,7 @@ import logging
 import time
 from typing import List, Dict, Any, Optional
 
-from models.base_model import BaseModelAdapter, Message, ModelResponse
+from backend.models.base_model import BaseModelAdapter, Message, ModelResponse
 
 logger = logging.getLogger(__name__)
 

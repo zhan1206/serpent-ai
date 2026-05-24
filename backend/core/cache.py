@@ -10,7 +10,7 @@ import logging
 from functools import wraps
 import redis
 
-from core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 

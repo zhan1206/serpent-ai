@@ -73,7 +73,7 @@ class ToolCoordinator:
     def _get_executor(self):
         """获取工具执行器"""
         if self.executor is None:
-            from tools.tool_executor import execute_tool
+            from backend.tools.tool_executor import execute_tool
             self.executor = execute_tool
         return self.executor
     

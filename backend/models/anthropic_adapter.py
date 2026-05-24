@@ -7,8 +7,8 @@ import anthropic
 from typing import List, Dict, Any, Optional, Generator
 import logging
 import time
-from core.config import settings
-from models.base_model import BaseModelAdapter, Message, ModelResponse, TokenUsage
+from backend.core.config import settings
+from backend.models.base_model import BaseModelAdapter, Message, ModelResponse, TokenUsage
 
 logger = logging.getLogger(__name__)
 

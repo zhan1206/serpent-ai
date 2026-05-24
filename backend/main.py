@@ -14,22 +14,22 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
-from core.config import settings, get_settings
-from core.logging_config import setup_logging, get_logger
-from core.database import init_db, check_db_health
-from models.base_model import Message
+from backend.core.config import settings, get_settings
+from backend.core.logging_config import setup_logging, get_logger
+from backend.core.database import init_db, check_db_health
+from backend.models.base_model import Message
 
 # 导入工具系统集成
 from tools import get_global_registry, get_global_precompiler, get_global_distiller
-from tools.builtin_tools import register_all_builtin_tools
+from backend.tools.builtin_tools import register_all_builtin_tools
 
-from routes.efficiency import router as efficiency_router
-from routes.gateway import router as gateway_router
-from routes.web import router as web_router
-from routes.agent import router as agent_router  # Agent API routes
-from routes.workflow import router as workflow_router  # Workflow API routes
-from routes.voice import router as voice_router  # Voice API routes
-from routes.chat import router as chat_router  # Chat API routes
+from backend.routes.efficiency import router as efficiency_router
+from backend.routes.gateway import router as gateway_router
+from backend.routes.web import router as web_router
+from backend.routes.agent import router as agent_router  # Agent API routes
+from backend.routes.workflow import router as workflow_router  # Workflow API routes
+from backend.routes.voice import router as voice_router  # Voice API routes
+from backend.routes.chat import router as chat_router  # Chat API routes
 from gateways import get_gateway_manager, get_message_router
 
 # 导入效率引擎
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"数据库健康检查: {db_health}")
         
         # 初始化Neo4j约束
-        from core.database import init_neo4j_constraints
+        from backend.core.database import init_neo4j_constraints
         try:
             init_neo4j_constraints()
         except Exception as e:
@@ -79,8 +79,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             register_all_builtin_tools()
             
             # 预编译和蒸馏工具（Token优化）
-            from tools.tool_precompiler import precompile_tools
-            from tools.tool_distiller import distill_tools
+            from backend.tools.tool_precompiler import precompile_tools
+            from backend.tools.tool_distiller import distill_tools
             
             precompile_tools()
             distill_tools()
@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 初始化模型注册表
         logger.info("正在初始化模型注册表...")
         try:
-            from models.registry import init_default_models
+            from backend.models.registry import init_default_models
             init_default_models()
             logger.info("模型注册表初始化完成！")
         except Exception as e:
@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 关闭时清理资源
     logger.info("正在关闭应用...")
     
-    from core.database import close_neo4j_driver
+    from backend.core.database import close_neo4j_driver
     close_neo4j_driver()
     
     logger.info("应用已关闭")
@@ -254,7 +254,7 @@ async def list_models():
     """
     列出所有支持的模型
     """
-    from models.base_model import list_supported_models
+    from backend.models.base_model import list_supported_models
     return {
         "models": list_supported_models(),
         "count": len(list_supported_models())
@@ -363,7 +363,7 @@ async def chat(
         all_msgs = context_msgs + current_msgs
         
         # 3. 创建模型适配器
-        from models.base_model import create_adapter
+        from backend.models.base_model import create_adapter
         adapter = create_adapter(model_name)
         
         # 4. 生成响应
@@ -655,7 +655,7 @@ async def call_tool(request: Request):
             raise HTTPException(status_code=400, detail="tool_name不能为空")
         
         # 调用工具
-        from tools.tool_executor import execute_tool
+        from backend.tools.tool_executor import execute_tool
         result = execute_tool(tool_name, arguments)
         
         logger.info(f"调用工具 | 工具: {tool_name} | 参数: {arguments}")
@@ -784,8 +784,8 @@ async def get_optimized_tool_prompt():
     使用预编译和蒸馏技术，减少80% Token消耗
     """
     try:
-        from tools.tool_precompiler import get_tools_prompt as get_precompiled
-        from tools.tool_distiller import get_distilled_prompt
+        from backend.tools.tool_precompiler import get_tools_prompt as get_precompiled
+        from backend.tools.tool_distiller import get_distilled_prompt
         
         # 获取两种优化提示词
         precompiled_prompt = get_precompiled()

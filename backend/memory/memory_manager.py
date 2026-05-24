@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import threading
 
-from models.base_model import Message
+from backend.models.base_model import Message
 from .instant_memory import get_instant_memory, reset_instant_memory
 from .short_term_memory import get_short_term_memory, reset_short_term_memory
 

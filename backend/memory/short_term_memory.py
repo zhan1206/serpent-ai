@@ -9,9 +9,9 @@ import threading
 import hashlib
 import json
 
-from models.base_model import Message
-from core.config import settings
-from core.database import get_chroma_client, init_chroma
+from backend.models.base_model import Message
+from backend.core.config import settings
+from backend.core.database import get_chroma_client, init_chroma
 
 logger = logging.getLogger(__name__)
 
