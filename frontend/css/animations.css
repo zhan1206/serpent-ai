@@ -1,0 +1,374 @@
+/* ============================================
+   SerpentAI 蛇形动画效果
+   动画包括：思考、工作、成功、错误状态
+   + 页面加载、消息气泡、按钮悬停微动画
+   ============================================ */
+
+/* === 蛇形状态动画 === */
+
+/* 思考状态：蛇身呼吸脉动 */
+@keyframes snake-think {
+  0%, 100% { transform: scaleY(1) scaleX(1); opacity: 0.7; }
+  50% { transform: scaleY(1.08) scaleX(0.96); opacity: 1; }
+}
+
+/* 工作状态：蛇形旋转/加载 */
+@keyframes snake-work {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(90deg) scale(1.05); }
+  50% { transform: rotate(180deg) scale(1); }
+  75% { transform: rotate(270deg) scale(1.05); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+/* 蛇形波浪加载 */
+@keyframes snake-wave {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* 成功状态：弹跳闪光 */
+@keyframes snake-success {
+  0% { transform: scale(0.8); opacity: 0; }
+  40% { transform: scale(1.15); opacity: 1; }
+  60% { transform: scale(0.95); }
+  80% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 错误状态：抖动红色闪烁 */
+@keyframes snake-error {
+  0%, 100% { transform: translateX(0); background-color: inherit; }
+  10% { transform: translateX(-6px); background-color: rgba(239, 68, 68, 0.15); }
+  20% { transform: translateX(6px); background-color: inherit; }
+  30% { transform: translateX(-4px); background-color: rgba(239, 68, 68, 0.1); }
+  40% { transform: translateX(4px); }
+  50% { transform: translateX(-2px); background-color: rgba(239, 68, 68, 0.05); }
+  60% { transform: translateX(2px); }
+}
+
+/* === 蛇形光标/指示器 === */
+
+.snake-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.snake-indicator .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: snake-think 1.4s ease-in-out infinite;
+}
+
+.snake-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+.snake-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+
+.snake-indicator.thinking .dot {
+  background: var(--color-warning);
+  animation-name: snake-think;
+}
+
+.snake-indicator.working .dot {
+  background: var(--color-primary);
+  animation-name: snake-work;
+  animation-duration: 2s;
+  border-radius: 3px;
+  width: 12px;
+  height: 4px;
+}
+
+.snake-indicator.success .dot {
+  background: var(--color-success);
+  animation-name: snake-success;
+  animation-duration: 0.6s;
+  animation-fill-mode: forwards;
+}
+
+.snake-indicator.error .dot {
+  background: var(--color-danger);
+  animation-name: snake-error;
+  animation-duration: 0.5s;
+}
+
+/* 蛇形进度条 */
+.snake-progress {
+  position: relative;
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.snake-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  animation: snake-wave 1.5s ease-in-out infinite;
+}
+
+/* === 页面加载动画 === */
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: page-enter 0.5s ease-out forwards;
+}
+
+/* 骨架屏加载 */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.skeleton {
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-text {
+  height: 16px;
+  margin-bottom: 8px;
+  width: 80%;
+}
+
+.skeleton-title {
+  height: 24px;
+  margin-bottom: 12px;
+  width: 60%;
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+/* === 消息气泡动画 === */
+
+@keyframes msg-bubble-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes msg-bubble-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); max-height: 500px; }
+  to { opacity: 0; transform: translateY(-8px) scale(0.95); max-height: 0; margin: 0; padding: 0; }
+}
+
+.msg-bubble-enter {
+  animation: msg-bubble-enter 0.35s ease-out forwards;
+}
+
+.msg-bubble-exit {
+  animation: msg-bubble-exit 0.3s ease-in forwards;
+  overflow: hidden;
+}
+
+/* 打字指示器 */
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+.typing-indicator {
+  display: inline-flex;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: var(--color-bg-secondary);
+}
+
+.typing-indicator .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  animation: typing-dot 1.4s ease-in-out infinite;
+}
+
+.typing-indicator .dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-indicator .dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* === 按钮/卡片悬停微动画 === */
+
+/* 按钮涟漪效果 */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  transform: translate(-50%, -50%);
+  transition: width 0.5s, height 0.5s, opacity 0.5s;
+  opacity: 0;
+}
+
+.btn-ripple:active::after {
+  width: 300px;
+  height: 300px;
+  opacity: 0;
+  transition: 0s;
+}
+
+/* 卡片悬浮 */
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+}
+
+/* 侧边栏项目 */
+.nav-item-hover {
+  position: relative;
+  transition: background-color 0.2s ease, padding-left 0.2s ease;
+}
+
+.nav-item-hover:hover {
+  background-color: var(--color-bg-hover);
+  padding-left: 20px;
+}
+
+.nav-item-hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+  transition: height 0.2s ease;
+}
+
+.nav-item-hover:hover::before,
+.nav-item-hover.active::before {
+  height: 60%;
+}
+
+/* === Toast通知动画 === */
+
+@keyframes toast-enter {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-exit {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+.toast-enter { animation: toast-enter 0.35s ease-out forwards; }
+.toast-exit { animation: toast-exit 0.3s ease-in forwards; }
+
+/* === 模态框动画 === */
+
+@keyframes modal-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-enter {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-backdrop-enter { animation: modal-backdrop-enter 0.25s ease forwards; }
+.modal-enter { animation: modal-enter 0.3s ease-out forwards; }
+
+/* === 工具提示动画 === */
+
+@keyframes tooltip-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tooltip-enter { animation: tooltip-enter 0.2s ease-out forwards; }
+
+/* === 骨架屏渐变蛇形动画 === */
+
+@keyframes snake-gradient {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.snake-gradient-bg {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-hover) 40%,
+    var(--color-bg-secondary) 80%
+  );
+  background-size: 200% 100%;
+  animation: snake-gradient 2s ease-in-out infinite;
+}
+
+/* === 数字滚动动画 === */
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.count-animate {
+  animation: count-up 0.4s ease-out forwards;
+}
+
+/* === 滚动条美化 === */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* === 减少动画偏好 === */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

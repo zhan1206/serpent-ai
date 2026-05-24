@@ -2,6 +2,7 @@
 SerpentAI 离线模式管理器
 自动检测网络状态，离线时缓存消息/任务，上线后同步
 """
+import socket
 import logging
 import time
 import json
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
 from collections import deque
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +26,10 @@ class NetworkStatus(Enum):
 @dataclass
 class QueuedMessage:
     """离线队列消息"""
-    id: str
-    channel: str                    # 目标通道
-    target: str                     # 目标地址
-    payload: Dict[str, Any]         # 消息内容
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    channel: str = ""
+    target: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
     priority: int = 0               # 优先级（0=普通，1=高，2=紧急）
     created_at: float = 0.0
     retry_count: int = 0
@@ -112,13 +114,11 @@ class OfflineManager:
         Returns:
             NetworkStatus: 当前网络状态
         """
-        import socket
         old_status = self._status
         is_reachable = False
 
         for host in self._check_hosts:
             try:
-                # TCP connect to port 53 (DNS) with 2s timeout
                 sock = socket.create_connection((host, 53), timeout=2)
                 sock.close()
                 is_reachable = True
@@ -241,6 +241,9 @@ class OfflineManager:
             logger.warning("当前离线，无法同步")
             return {"synced": 0, "failed": 0, "remaining": len(self._queue)}
 
+        if send_func is None:
+            return {"synced": 0, "failed": 0, "remaining": len(self._queue)}
+
         self._sync_in_progress = True
         synced = 0
         failed = 0
@@ -254,15 +257,11 @@ class OfflineManager:
                 logger.warning(f"消息 {msg.id} 超过最大重试次数，丢弃")
                 continue
 
-            if send_func:
-                try:
-                    success = send_func(msg.channel, msg.target, msg.payload)
-                except Exception as e:
-                    success = False
-                    logger.warning(f"发送消息 {msg.id} 异常: {e}")
-            else:
+            try:
+                success = send_func(msg.channel, msg.target, msg.payload)
+            except Exception as e:
                 success = False
-                logger.debug(f"无发送函数，消息 {msg.id} 保留在队列中")
+                logger.warning(f"发送消息 {msg.id} 异常: {e}")
 
             if success:
                 self._queue.popleft()
@@ -270,13 +269,12 @@ class OfflineManager:
                 self._synced_count += 1
             else:
                 msg.retry_count += 1
-                # 移到队列末尾等待下次重试
-                self._queue.rotate(-1)
-                # 如果重试了所有消息，停止避免无限循环
                 if msg.retry_count >= msg.max_retries:
                     self._queue.popleft()
                     self._failed_sync_count += 1
                     failed += 1
+                else:
+                    self._queue.rotate(-1)
 
         self._sync_in_progress = False
         result = {"synced": synced, "failed": failed, "remaining": len(self._queue)}

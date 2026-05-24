@@ -1,0 +1,724 @@
+/**
+ * SerpentAI 主题样式
+ * 功能：浅色/深色主题切换
+ * 版本：2.0.0
+ */
+
+/* ============================================
+   CSS 自定义属性（变量）定义
+   ============================================ */
+
+:root {
+  /* ===== 浅色主题（默认） ===== */
+  
+  /* 主色调 */
+  --color-primary: #00d4ff;
+  --color-primary-hover: #00b8e6;
+  --color-primary-light: rgba(0, 212, 255, 0.1);
+  --color-secondary: #4dabf7;
+  --color-accent: #da77f2;
+  
+  /* 背景色 */
+  --color-bg-base: #f5f5f7;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f0f0f2;
+  --color-bg-tertiary: #e8e8eb;
+  --color-bg-elevated: #ffffff;
+  --color-bg-overlay: rgba(0, 0, 0, 0.5);
+  
+  /* 文字颜色 */
+  --color-text-primary: #1a1a2e;
+  --color-text-secondary: #4a4a5a;
+  --color-text-tertiary: #8888a0;
+  --color-text-disabled: #b0b0c0;
+  --color-text-inverse: #ffffff;
+  
+  /* 边框颜色 */
+  --color-border-primary: #e0e0e5;
+  --color-border-secondary: #d0d0d8;
+  --color-border-focus: #00d4ff;
+  --color-border-hover: #c0c0c8;
+  
+  /* 状态颜色 */
+  --color-success: #6bcb77;
+  --color-success-bg: rgba(107, 203, 119, 0.1);
+  --color-warning: #ffd93d;
+  --color-warning-bg: rgba(255, 217, 61, 0.1);
+  --color-error: #ff4757;
+  --color-error-bg: rgba(255, 71, 87, 0.1);
+  --color-info: #00d4ff;
+  --color-info-bg: rgba(0, 212, 255, 0.1);
+  
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-focus: 0 0 0 3px rgba(0, 212, 255, 0.3);
+  
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+  
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  
+  /* 字体 */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-family-mono: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 24px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* 行高 */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  /* 过渡 */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.5s ease;
+  
+  /* Z-index */
+  --z-dropdown: 1000;
+  --z-modal: 10000;
+  --z-toast: 10001;
+  --z-tooltip: 10002;
+  
+  /* 消息气泡 */
+  --bubble-user-bg: #00d4ff;
+  --bubble-user-text: #ffffff;
+  --bubble-assistant-bg: #f0f0f2;
+  --bubble-assistant-text: #1a1a2e;
+  
+  /* 侧边栏 */
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e0e0e5;
+  --sidebar-item-hover: rgba(0, 212, 255, 0.05);
+  --sidebar-item-active: rgba(0, 212, 255, 0.1);
+  
+  /* 卡片 */
+  --card-bg: #ffffff;
+  --card-border: #e0e0e5;
+  --card-shadow: var(--shadow-md);
+  --card-hover-shadow: var(--shadow-lg);
+  
+  /* 输入框 */
+  --input-bg: #ffffff;
+  --input-border: #d0d0d8;
+  --input-text: #1a1a2e;
+  --input-placeholder: #8888a0;
+  --input-focus-border: #00d4ff;
+  --input-focus-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15);
+  
+  /* 按钮 */
+  --btn-bg: #f0f0f2;
+  --btn-border: #d0d0d8;
+  --btn-text: #1a1a2e;
+  --btn-hover-bg: #e8e8eb;
+  --btn-hover-border: #c0c0c8;
+  --btn-primary-bg: #00d4ff;
+  --btn-primary-border: #00d4ff;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover-bg: #00b8e6;
+  
+  /* 代码块 */
+  --code-bg: #f5f5f7;
+  --code-text: #1a1a2e;
+  --code-border: #e0e0e5;
+  
+  /* 滚动条 */
+  --scrollbar-track: #f0f0f2;
+  --scrollbar-thumb: #c0c0c8;
+  --scrollbar-thumb-hover: #a0a0a8;
+}
+
+/* ============================================
+   深色主题
+   ============================================ */
+
+[data-theme="dark"],
+.theme-dark {
+  /* 背景色 */
+  --color-bg-base: #0a0a1e;
+  --color-bg-primary: #0f0f23;
+  --color-bg-secondary: #1a1a2e;
+  --color-bg-tertiary: #252540;
+  --color-bg-elevated: #1e1e3a;
+  --color-bg-overlay: rgba(0, 0, 0, 0.75);
+  
+  /* 文字颜色 */
+  --color-text-primary: #e8e8f0;
+  --color-text-secondary: #a0a0b8;
+  --color-text-tertiary: #7070a0;
+  --color-text-disabled: #505080;
+  --color-text-inverse: #0a0a1e;
+  
+  /* 边框颜色 */
+  --color-border-primary: #2a2a4a;
+  --color-border-secondary: #3a3a5a;
+  --color-border-focus: #00d4ff;
+  --color-border-hover: #4a4a6a;
+  
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(0, 212, 255, 0.3);
+  
+  /* 消息气泡 */
+  --bubble-user-bg: #00d4ff;
+  --bubble-user-text: #0a0a1e;
+  --bubble-assistant-bg: #1a1a2e;
+  --bubble-assistant-text: #e8e8f0;
+  
+  /* 侧边栏 */
+  --sidebar-bg: #0f0f23;
+  --sidebar-border: #2a2a4a;
+  --sidebar-item-hover: rgba(0, 212, 255, 0.08);
+  --sidebar-item-active: rgba(0, 212, 255, 0.15);
+  
+  /* 卡片 */
+  --card-bg: #1a1a2e;
+  --card-border: #2a2a4a;
+  --card-shadow: var(--shadow-md);
+  --card-hover-shadow: var(--shadow-lg);
+  
+  /* 输入框 */
+  --input-bg: #1a1a2e;
+  --input-border: #3a3a5a;
+  --input-text: #e8e8f0;
+  --input-placeholder: #7070a0;
+  --input-focus-border: #00d4ff;
+  --input-focus-shadow: 0 0 0 3px rgba(0, 212, 255, 0.2);
+  
+  /* 按钮 */
+  --btn-bg: #252540;
+  --btn-border: #3a3a5a;
+  --btn-text: #e8e8f0;
+  --btn-hover-bg: #2a2a4a;
+  --btn-hover-border: #4a4a6a;
+  --btn-primary-bg: #00d4ff;
+  --btn-primary-border: #00d4ff;
+  --btn-primary-text: #0a0a1e;
+  --btn-primary-hover-bg: #00b8e6;
+  
+  /* 代码块 */
+  --code-bg: #1a1a2e;
+  --code-text: #e8e8f0;
+  --code-border: #2a2a4a;
+  
+  /* 滚动条 */
+  --scrollbar-track: #1a1a2e;
+  --scrollbar-thumb: #3a3a5a;
+  --scrollbar-thumb-hover: #4a4a6a;
+}
+
+/* ============================================
+   自动跟随系统偏好
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    /* 背景色 */
+    --color-bg-base: #0a0a1e;
+    --color-bg-primary: #0f0f23;
+    --color-bg-secondary: #1a1a2e;
+    --color-bg-tertiary: #252540;
+    --color-bg-elevated: #1e1e3a;
+    --color-bg-overlay: rgba(0, 0, 0, 0.75);
+    
+    /* 文字颜色 */
+    --color-text-primary: #e8e8f0;
+    --color-text-secondary: #a0a0b8;
+    --color-text-tertiary: #7070a0;
+    --color-text-disabled: #505080;
+    --color-text-inverse: #0a0a1e;
+    
+    /* 边框颜色 */
+    --color-border-primary: #2a2a4a;
+    --color-border-secondary: #3a3a5a;
+    --color-border-focus: #00d4ff;
+    --color-border-hover: #4a4a6a;
+    
+    /* 阴影 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+    --shadow-focus: 0 0 0 3px rgba(0, 212, 255, 0.3);
+    
+    /* 消息气泡 */
+    --bubble-user-bg: #00d4ff;
+    --bubble-user-text: #0a0a1e;
+    --bubble-assistant-bg: #1a1a2e;
+    --bubble-assistant-text: #e8e8f0;
+    
+    /* 侧边栏 */
+    --sidebar-bg: #0f0f23;
+    --sidebar-border: #2a2a4a;
+    --sidebar-item-hover: rgba(0, 212, 255, 0.08);
+    --sidebar-item-active: rgba(0, 212, 255, 0.15);
+    
+    /* 卡片 */
+    --card-bg: #1a1a2e;
+    --card-border: #2a2a4a;
+    
+    /* 输入框 */
+    --input-bg: #1a1a2e;
+    --input-border: #3a3a5a;
+    --input-text: #e8e8f0;
+    --input-placeholder: #7070a0;
+    --input-focus-border: #00d4ff;
+    --input-focus-shadow: 0 0 0 3px rgba(0, 212, 255, 0.2);
+    
+    /* 按钮 */
+    --btn-bg: #252540;
+    --btn-border: #3a3a5a;
+    --btn-text: #e8e8f0;
+    --btn-hover-bg: #2a2a4a;
+    --btn-hover-border: #4a4a6a;
+    --btn-primary-bg: #00d4ff;
+    --btn-primary-border: #00d4ff;
+    --btn-primary-text: #0a0a1e;
+    --btn-primary-hover-bg: #00b8e6;
+    
+    /* 代码块 */
+    --code-bg: #1a1a2e;
+    --code-text: #e8e8f0;
+    --code-border: #2a2a4a;
+    
+    /* 滚动条 */
+    --scrollbar-track: #1a1a2e;
+    --scrollbar-thumb: #3a3a5a;
+    --scrollbar-thumb-hover: #4a4a6a;
+  }
+}
+
+/* ============================================
+   主题切换过渡动画
+   ============================================ */
+
+html,
+body,
+.sa,
+.ps,
+.app {
+  transition: 
+    background-color var(--transition-normal),
+    color var(--transition-normal),
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal);
+}
+
+/* 全局过渡 */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: var(--transition-normal);
+  transition-timing-function: ease;
+}
+
+/* 禁用某些元素的过渡 */
+*:focus,
+*:active,
+*.no-transition {
+  transition: none !important;
+}
+
+/* ============================================
+   基础样式应用
+   ============================================ */
+
+/* 页面背景 */
+html {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 选中文本颜色 */
+::selection {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+/* 链接颜色 */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+/* ============================================
+   组件样式
+   ============================================ */
+
+/* 按钮 */
+.btn,
+.sa-btn,
+.ps-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-text);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
+}
+
+.btn:hover,
+.sa-btn:hover,
+.ps-btn:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+}
+
+.btn:disabled,
+.sa-btn:disabled,
+.ps-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary,
+.sa-send-btn {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-border);
+  color: var(--btn-primary-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.btn-primary:hover,
+.sa-send-btn:hover {
+  background: var(--btn-primary-hover-bg);
+}
+
+/* 输入框 */
+input,
+textarea,
+select,
+.sa-chat-input {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-text);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  font-size: var(--font-size-md);
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+.sa-chat-input:focus {
+  border-color: var(--input-focus-border);
+  box-shadow: var(--input-focus-shadow);
+}
+
+input::placeholder,
+textarea::placeholder,
+.sa-chat-input::placeholder {
+  color: var(--input-placeholder);
+}
+
+/* 卡片 */
+.card,
+.sa-tool-item,
+.sa-plugin-item,
+.sa-skill-item,
+.ps-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: all var(--transition-fast);
+}
+
+.card:hover,
+.sa-tool-item:hover,
+.sa-plugin-item:hover,
+.sa-skill-item:hover,
+.ps-card:hover {
+  border-color: var(--color-border-focus);
+  box-shadow: var(--card-hover-shadow);
+}
+
+/* 标签 */
+.badge,
+.sa-badge {
+  display: inline-block;
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.badge-success,
+.sa-badge-started {
+  background: var(--color-success);
+  color: var(--color-text-inverse);
+}
+
+.badge-error,
+.sa-badge-stopped {
+  background: var(--color-error);
+  color: var(--color-text-inverse);
+}
+
+.badge-warning {
+  background: var(--color-warning);
+  color: var(--color-text-primary);
+}
+
+/* ============================================
+   SerpentAI 特定组件
+   ============================================ */
+
+/* 主应用容器 */
+.sa {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+/* 头部 */
+.sa-header {
+  background: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.sa-header h1 {
+  color: var(--color-primary);
+}
+
+/* 消息气泡 */
+.sa-message {
+  animation: sa-fadeIn var(--transition-normal);
+}
+
+.sa-message-user .sa-message-content {
+  background: var(--bubble-user-bg);
+  color: var(--bubble-user-text);
+}
+
+.sa-message-assistant .sa-message-content {
+  background: var(--bubble-assistant-bg);
+  color: var(--bubble-assistant-text);
+}
+
+.sa-message-role {
+  color: var(--color-primary);
+}
+
+/* 侧边栏 */
+.sa-sidebar {
+  background: var(--sidebar-bg);
+  border-left: 1px solid var(--sidebar-border);
+}
+
+.sa-tab {
+  color: var(--color-text-tertiary);
+}
+
+.sa-tab:hover {
+  background: var(--sidebar-item-hover);
+  color: var(--color-text-primary);
+}
+
+.sa-tab-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* 状态栏 */
+.sa-statusbar {
+  background: var(--color-bg-primary);
+  border-top: 1px solid var(--color-border-primary);
+  color: var(--color-text-tertiary);
+}
+
+/* Toast 通知 */
+.sa-toast {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.sa-toast-success { 
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-text-inverse);
+}
+
+.sa-toast-error { 
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: var(--color-text-inverse);
+}
+
+.sa-toast-info { 
+  background: var(--color-info);
+  border-color: var(--color-info);
+  color: var(--color-text-inverse);
+}
+
+.sa-toast-warning { 
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-text-primary);
+}
+
+/* 代码块 */
+.sa-message-text pre,
+.sa-message-text code {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  color: var(--code-text);
+}
+
+/* ============================================
+   工作流编辑器主题
+   ============================================ */
+
+.app {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+.header {
+  background: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.header h1 {
+  color: var(--color-primary);
+}
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.canvas-bg {
+  background-image: radial-gradient(
+    circle, 
+    var(--color-border-secondary) 1px, 
+    transparent 1px
+  );
+}
+
+.workflow-node {
+  background: var(--card-bg);
+  border-color: var(--card-border);
+}
+
+.workflow-node:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+}
+
+.workflow-node.selected {
+  border-color: var(--color-error);
+}
+
+.node-header {
+  background: var(--color-bg-tertiary);
+}
+
+.properties {
+  background: var(--sidebar-bg);
+  border-left: 1px solid var(--sidebar-border);
+}
+
+.modal {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-primary);
+}
+
+.template-card,
+.palette-item {
+  background: var(--card-bg);
+  border-color: var(--card-border);
+}
+
+.template-card:hover,
+.palette-item:hover {
+  border-color: var(--color-primary);
+}
+
+/* ============================================
+   响应式调整
+   ============================================ */
+
+@media (max-width: 768px) {
+  :root {
+    --spacing-lg: 12px;
+    --spacing-xl: 16px;
+    --font-size-md: 13px;
+  }
+}
+
+/* ============================================
+   打印样式
+   ============================================ */
+
+@media print {
+  :root,
+  [data-theme="dark"] {
+    --color-bg-base: #ffffff;
+    --color-bg-primary: #ffffff;
+    --color-text-primary: #000000;
+    --color-text-secondary: #333333;
+  }
+}

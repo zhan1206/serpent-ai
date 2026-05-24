@@ -351,7 +351,7 @@ class PluginStore:
 
         # 2. 从已安装数据库搜索（补充远程安装的）
         installed = self._db_execute(
-            "SELECT * FROM installed_plugins WHERE source != 'builtin'"
+            "SELECT * FROM installed_plugins"
         ).fetchall()
         for row in installed:
             info = self._row_to_info(row)
