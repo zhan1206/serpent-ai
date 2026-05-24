@@ -6,8 +6,12 @@ JWT Token认证、会话管理
 import secrets
 import hashlib
 import time
+import base64
+import hmac
+import struct
+import pyotp
 from dataclasses import dataclass, field
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta
 import logging
 
@@ -52,6 +56,34 @@ class Session:
         return datetime.now() > self.last_activity + timedelta(minutes=30)
 
 
+@dataclass
+class MFAConfig:
+    """MFA配置"""
+    enabled: bool = False
+    totp_secret: Optional[str] = None
+    backup_codes: List[str] = field(default_factory=list)
+    verified: bool = False
+
+@dataclass
+class APIKey:
+    """API密钥"""
+    key_id: str
+    key_hash: str  # SHA-256哈希，不存储明文
+    user_id: str
+    name: str
+    scopes: List[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    expires_at: Optional[datetime] = None
+    last_used: Optional[datetime] = None
+    is_active: bool = True
+
+    @property
+    def is_expired(self) -> bool:
+        if self.expires_at is None:
+            return False
+        return datetime.now() > self.expires_at
+
+
 class AuthManager:
     """
     认证管理器 - 第三层防御
@@ -60,6 +92,8 @@ class AuthManager:
     2. Token生成和验证
     3. 会话管理
     4. 密码重置
+    5. MFA多因素认证
+    6. API Key认证
     """
     
     def __init__(self):
@@ -68,6 +102,9 @@ class AuthManager:
         self._tokens: Dict[str, Token] = {}  # token -> Token
         self._sessions: Dict[str, Session] = {}  # session_id -> Session
         self._login_attempts: Dict[str, dict] = {}  # user_id -> {attempts, locked_until}
+        self._mfa_configs: Dict[str, MFAConfig] = {}  # user_id -> MFAConfig
+        self._api_keys: Dict[str, APIKey] = {}  # key_id -> APIKey
+        self._pending_mfa: Dict[str, dict] = {}  # token -> {user_id, created_at}
         
         # 配置
         self.token_expiry_hours = 24
@@ -388,3 +425,277 @@ class AuthManager:
             return True
         
         return False
+
+    # ==================== MFA 多因素认证 ====================
+
+    def setup_mfa(self, user_id: str) -> Tuple[str, str]:
+        """
+        为用户设置MFA（TOTP）
+        
+        Returns:
+            (totp_secret, provisioning_uri)
+        """
+        if user_id not in self._users:
+            raise ValueError("用户不存在")
+        
+        totp_secret = pyotp.random_base32()
+        username = self._users[user_id]["username"]
+        totp = pyotp.TOTP(totp_secret)
+        provisioning_uri = totp.provisioning_uri(name=username, issuer_name="SerpentAI")
+        
+        # 生成备用恢复码
+        backup_codes = [secrets.token_urlsafe(8) for _ in range(10)]
+        
+        self._mfa_configs[user_id] = MFAConfig(
+            enabled=False,  # 需要验证后启用
+            totp_secret=totp_secret,
+            backup_codes=backup_codes,
+            verified=False
+        )
+        
+        logger.info(f"MFA设置已初始化: {user_id}")
+        return totp_secret, provisioning_uri
+
+    def verify_mfa_setup(self, user_id: str, code: str) -> Tuple[bool, str]:
+        """
+        验证MFA设置（用户输入TOTP码确认设置）
+        
+        Returns:
+            (success, message)
+        """
+        if user_id not in self._mfa_configs:
+            return False, "MFA未初始化"
+        
+        config = self._mfa_configs[user_id]
+        if self._verify_totp_code(config.totp_secret, code):
+            config.enabled = True
+            config.verified = True
+            logger.info(f"MFA验证成功并已启用: {user_id}")
+            return True, "MFA已启用"
+        
+        return False, "验证码无效"
+
+    def verify_mfa(self, user_id: str, code: str) -> Tuple[bool, str]:
+        """
+        验证MFA代码（登录时使用）
+        
+        Returns:
+            (success, message)
+        """
+        if user_id not in self._mfa_configs:
+            return False, "MFA未设置"
+        
+        config = self._mfa_configs[user_id]
+        
+        if not config.enabled:
+            return False, "MFA未启用"
+        
+        # 检查TOTP
+        if self._verify_totp_code(config.totp_secret, code):
+            return True, "MFA验证通过"
+        
+        # 检查备用码
+        if code in config.backup_codes:
+            config.backup_codes.remove(code)  # 备用码一次性使用
+            logger.info(f"使用备用码验证MFA成功: {user_id}")
+            return True, "备用码验证通过（已消耗）"
+        
+        return False, "MFA验证码无效"
+
+    def disable_mfa(self, user_id: str, password: str) -> Tuple[bool, str]:
+        """禁用MFA（需验证密码）"""
+        if user_id not in self._users:
+            return False, "用户不存在"
+        
+        if not verify_password(password, self._users[user_id]["password_hash"]):
+            return False, "密码验证失败"
+        
+        if user_id in self._mfa_configs:
+            del self._mfa_configs[user_id]
+            logger.info(f"MFA已禁用: {user_id}")
+            return True, "MFA已禁用"
+        
+        return True, "MFA未设置"
+
+    def _verify_totp_code(self, secret: str, code: str) -> bool:
+        """验证TOTP代码"""
+        totp = pyotp.TOTP(secret)
+        # 允许前后各1个时间窗口（共3个窗口，30秒窗口期）
+        return totp.verify(code, valid_window=1)
+
+    def get_mfa_status(self, user_id: str) -> Optional[Dict]:
+        """获取用户MFA状态"""
+        if user_id not in self._mfa_configs:
+            return {"enabled": False, "configured": False}
+        
+        config = self._mfa_configs[user_id]
+        return {
+            "enabled": config.enabled,
+            "configured": True,
+            "verified": config.verified,
+            "backup_codes_remaining": len(config.backup_codes)
+        }
+
+    # ==================== MFA 感知的登录流程 ====================
+
+    def authenticate_with_mfa(
+        self,
+        username: str,
+        password: str,
+        mfa_code: Optional[str] = None,
+        ip_address: Optional[str] = None
+    ) -> Tuple[bool, str, Optional[Token]]:
+        """
+        支持MFA的登录认证
+        
+        如果用户启用了MFA且未提供mfa_code，返回待验证状态。
+        """
+        success, message, token = self.authenticate(username, password, ip_address)
+        
+        if not success:
+            return False, message, None
+        
+        # 查找user_id
+        user_id = None
+        for uid, u in self._users.items():
+            if u.get("username") == username:
+                user_id = uid
+                break
+        
+        # 检查是否需要MFA
+        if user_id in self._mfa_configs and self._mfa_configs[user_id].enabled:
+            if mfa_code is None:
+                # 暂停token，等待MFA验证
+                pending_token = token.token
+                self._pending_mfa[pending_token] = {
+                    "user_id": user_id,
+                    "created_at": datetime.now(),
+                    "token": token
+                }
+                return False, "MFA_REQUIRED", None
+            
+            mfa_ok, mfa_msg = self.verify_mfa(user_id, mfa_code)
+            if not mfa_ok:
+                return False, mfa_msg, None
+        
+        return True, "登录成功", token
+
+    # ==================== API Key 管理 ====================
+
+    def create_api_key(
+        self,
+        user_id: str,
+        name: str,
+        scopes: Optional[List[str]] = None,
+        expires_days: Optional[int] = None
+    ) -> Tuple[str, str]:
+        """
+        创建API Key
+        
+        Returns:
+            (key_id, plaintext_key)  # 明文key仅返回一次
+        """
+        if user_id not in self._users:
+            raise ValueError("用户不存在")
+        
+        key_id = f"sk-{secrets.token_urlsafe(24)}"
+        plaintext_key = f"sk-live-{secrets.token_urlsafe(48)}"
+        
+        # 仅存储哈希
+        key_hash = hashlib.sha256(plaintext_key.encode()).hexdigest()
+        
+        expires_at = None
+        if expires_days:
+            expires_at = datetime.now() + timedelta(days=expires_days)
+        
+        api_key = APIKey(
+            key_id=key_id,
+            key_hash=key_hash,
+            user_id=user_id,
+            name=name,
+            scopes=scopes or ["read"],
+            created_at=datetime.now(),
+            expires_at=expires_at
+        )
+        
+        self._api_keys[key_id] = api_key
+        
+        logger.info(f"API Key已创建: {key_id} ({name})")
+        return key_id, plaintext_key
+
+    def verify_api_key(self, plaintext_key: str) -> Tuple[bool, Optional[str], Optional[APIKey]]:
+        """
+        验证API Key
+        
+        Returns:
+            (is_valid, user_id, api_key)
+        """
+        key_hash = hashlib.sha256(plaintext_key.encode()).hexdigest()
+        
+        for api_key in self._api_keys.values():
+            if api_key.key_hash == key_hash:
+                if not api_key.is_active:
+                    return False, None, None
+                if api_key.is_expired:
+                    return False, None, None
+                
+                api_key.last_used = datetime.now()
+                return True, api_key.user_id, api_key
+        
+        return False, None, None
+
+    def revoke_api_key(self, key_id: str) -> bool:
+        """撤销API Key"""
+        if key_id in self._api_keys:
+            self._api_keys[key_id].is_active = False
+            logger.info(f"API Key已撤销: {key_id}")
+            return True
+        return False
+
+    def list_api_keys(self, user_id: str) -> List[Dict]:
+        """列出用户的API Key（不包含明文密钥）"""
+        result = []
+        for api_key in self._api_keys.values():
+            if api_key.user_id == user_id:
+                result.append({
+                    "key_id": api_key.key_id,
+                    "name": api_key.name,
+                    "scopes": api_key.scopes,
+                    "created_at": api_key.created_at.isoformat(),
+                    "expires_at": api_key.expires_at.isoformat() if api_key.expires_at else None,
+                    "last_used": api_key.last_used.isoformat() if api_key.last_used else None,
+                    "is_active": api_key.is_active,
+                    "is_expired": api_key.is_expired
+                })
+        return result
+
+    # ==================== 密码管理 ====================
+
+    def change_password(self, user_id: str, old_password: str, new_password: str) -> Tuple[bool, str]:
+        """修改密码"""
+        if user_id not in self._users:
+            return False, "用户不存在"
+        
+        if not verify_password(old_password, self._users[user_id]["password_hash"]):
+            return False, "原密码错误"
+        
+        password_hash = hash_password(new_password)
+        self._users[user_id]["password_hash"] = password_hash
+        
+        # 密码变更后终止所有会话
+        self.terminate_all_sessions(user_id)
+        
+        logger.info(f"密码已修改: {user_id}")
+        return True, "密码修改成功"
+
+    def reset_password(self, user_id: str, new_password: str) -> Tuple[bool, str]:
+        """管理员重置密码"""
+        if user_id not in self._users:
+            return False, "用户不存在"
+        
+        password_hash = hash_password(new_password)
+        self._users[user_id]["password_hash"] = password_hash
+        self.terminate_all_sessions(user_id)
+        
+        logger.info(f"密码已重置: {user_id}")
+        return True, "密码已重置"

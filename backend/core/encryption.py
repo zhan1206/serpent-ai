@@ -10,9 +10,13 @@ from cryptography.hazmat.backends import default_backend
 import hashlib
 import base64
 import os
+import json
+import struct
 from typing import Optional, Tuple, Union
 import logging
 from pathlib import Path
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from datetime import datetime
 
 from core.config import settings
 
@@ -313,6 +317,251 @@ class EncryptionManager:
         logger.debug("密码哈希完成")
         return password_hash.decode('utf-8'), salt.decode('utf-8')
     
+    # ==================== 密钥派生 ====================
+
+    @staticmethod
+    def derive_key(
+        master_password: str,
+        salt: Optional[bytes] = None,
+        iterations: int = 480000,
+        key_length: int = 32
+    ) -> Tuple[bytes, bytes]:
+        """
+        PBKDF2-HMAC-SHA256 密钥派生
+        
+        Args:
+            master_password: 用户主密钥
+            salt: 盐值（None则自动生成）
+            iterations: 迭代次数
+            key_length: 派生密钥长度（字节）
+            
+        Returns:
+            (derived_key, salt)
+        """
+        if salt is None:
+            salt = os.urandom(32)
+        
+        if isinstance(master_password, str):
+            master_password = master_password.encode('utf-8')
+        
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=key_length,
+            salt=salt,
+            iterations=iterations,
+            backend=default_backend()
+        )
+        
+        derived_key = kdf.derive(master_password)
+        logger.debug(f"密钥派生完成: {iterations} 次迭代")
+        return derived_key, salt
+
+    # ==================== AES-256-GCM 直接加密 ====================
+
+    @staticmethod
+    def aes_gcm_encrypt(
+        plaintext: Union[str, bytes],
+        key: Optional[bytes] = None,
+        aad: Optional[bytes] = None
+    ) -> bytes:
+        """
+        AES-256-GCM 直接加密
+        
+        Args:
+            plaintext: 明文
+            key: 32字节加密密钥（None则使用Fernet的底层密钥）
+            aad: 附加认证数据
+            
+        Returns:
+            nonce(12) + ciphertext + tag(16) 拼接字节
+        """
+        if isinstance(plaintext, str):
+            plaintext = plaintext.encode('utf-8')
+        
+        if key is None:
+            # 从Fernet密钥提取32字节
+            key = encryption_manager._fernet._signing_key[:32]
+        
+        nonce = os.urandom(12)
+        cipher = Cipher(
+            algorithms.AES(key),
+            modes.GCM(nonce),
+            backend=default_backend()
+        )
+        encryptor = cipher.encryptor()
+        
+        if aad:
+            encryptor.authenticate_additional_data(aad)
+        
+        ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+        
+        # nonce(12) + ciphertext + tag(16)
+        result = nonce + ciphertext + encryptor.tag
+        logger.debug(f"AES-256-GCM加密完成: {len(plaintext)} bytes")
+        return result
+
+    @staticmethod
+    def aes_gcm_decrypt(
+        encrypted_data: bytes,
+        key: Optional[bytes] = None,
+        aad: Optional[bytes] = None
+    ) -> bytes:
+        """
+        AES-256-GCM 直接解密
+        
+        Args:
+            encrypted_data: nonce(12) + ciphertext + tag(16)
+            key: 32字节加密密钥
+            aad: 附加认证数据
+        """
+        if len(encrypted_data) < 28:  # 12 nonce + 16 tag minimum
+            raise ValueError("加密数据格式无效")
+        
+        if key is None:
+            key = encryption_manager._fernet._signing_key[:32]
+        
+        nonce = encrypted_data[:12]
+        tag = encrypted_data[-16:]
+        ciphertext = encrypted_data[12:-16]
+        
+        cipher = Cipher(
+            algorithms.AES(key),
+            modes.GCM(nonce, tag),
+            backend=default_backend()
+        )
+        decryptor = cipher.decryptor()
+        
+        if aad:
+            decryptor.authenticate_additional_data(aad)
+        
+        plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        logger.debug(f"AES-256-GCM解密完成")
+        return plaintext
+
+    # ==================== 密钥轮换 ====================
+
+    def rotate_encryption_key(self) -> Tuple[bytes, bytes]:
+        """
+        密钥轮换：生成新密钥并保留旧密钥用于解密
+        
+        Returns:
+            (new_key, old_key)
+        """
+        old_key = self._fernet._signing_key
+        new_key = Fernet.generate_key()
+        
+        self._fernet = Fernet(new_key)
+        
+        # 保存旧密钥到轮换历史
+        rotation_dir = settings.DATA_DIR / "keys"
+        rotation_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        old_key_path = rotation_dir / f"fernet_key_{timestamp}.key"
+        with open(old_key_path, "wb") as f:
+            f.write(old_key)
+        
+        logger.info(f"密钥轮换完成，旧密钥已保存: {old_key_path}")
+        return new_key, old_key
+
+    def decrypt_with_legacy_key(self, encrypted_data: bytes, legacy_key: bytes) -> bytes:
+        """使用旧密钥解密（密钥轮换后解密旧数据）"""
+        fernet = Fernet(legacy_key)
+        return fernet.decrypt(encrypted_data)
+
+    def re_encrypt_data(self, encrypted_data: bytes, old_key: bytes) -> bytes:
+        """
+        使用旧密钥解密后用新密钥重新加密（密钥迁移）
+        """
+        decrypted = self.decrypt_with_legacy_key(encrypted_data, old_key)
+        return self.encrypt_symmetric(decrypted)
+
+    # ==================== 文件加密工具 ====================
+
+    def encrypt_file_aes_gcm(
+        self,
+        file_path: Union[str, Path],
+        key: Optional[bytes] = None
+    ) -> Path:
+        """
+        使用AES-256-GCM加密文件
+        格式：magic(4) + nonce(12) + ciphertext + tag(16)
+        """
+        file_path = Path(file_path)
+        encrypted_path = file_path.with_suffix(file_path.suffix + '.gcm')
+        
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        
+        encrypted = self.aes_gcm_encrypt(data, key)
+        
+        # 写入magic header标识文件格式
+        magic = b'SAGM'  # SerpentAI GCM Magic
+        
+        with open(encrypted_path, 'wb') as f:
+            f.write(magic + encrypted)
+        
+        logger.info(f"文件AES-GCM加密完成: {file_path} -> {encrypted_path}")
+        return encrypted_path
+
+    def decrypt_file_aes_gcm(
+        self,
+        encrypted_path: Union[str, Path],
+        key: Optional[bytes] = None
+    ) -> Path:
+        """
+        解密AES-256-GCM加密的文件
+        """
+        encrypted_path = Path(encrypted_path)
+        
+        with open(encrypted_path, 'rb') as f:
+            data = f.read()
+        
+        magic = b'SAGM'
+        if not data.startswith(magic):
+            raise ValueError("无效的SerpentAI GCM加密文件格式")
+        
+        encrypted_data = data[4:]  # 跳过magic header
+        decrypted = self.aes_gcm_decrypt(encrypted_data, key)
+        
+        decrypted_path = encrypted_path.with_suffix('')  # 移除 .gcm
+        with open(decrypted_path, 'wb') as f:
+            f.write(decrypted)
+        
+        logger.info(f"文件AES-GCM解密完成: {encrypted_path} -> {decrypted_path}")
+        return decrypted_path
+
+    # ==================== RSA 密钥对生成 ====================
+
+    @staticmethod
+    def generate_rsa_keypair(key_size: int = 4096) -> Tuple[bytes, bytes]:
+        """
+        生成RSA密钥对
+        
+        Returns:
+            (private_pem, public_pem)
+        """
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=key_size,
+            backend=default_backend()
+        )
+        public_key = private_key.public_key()
+        
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        
+        public_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        
+        logger.info(f"RSA-{key_size}密钥对已生成")
+        return private_pem, public_pem
+
     @staticmethod
     def verify_password(password: str, password_hash: str) -> bool:
         """

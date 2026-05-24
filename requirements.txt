@@ -17,3 +17,5 @@ httpx>=0.25
 python-multipart>=0.0.6
 python-dotenv>=1.0
 pyyaml>=6.0
+pyotp>=2.9
+tiktoken>=0.7

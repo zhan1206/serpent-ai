@@ -182,6 +182,30 @@ class GatewayManager:
         elif platform_name == "slack":
             from .slack_adapter import SlackAdapter
             return SlackAdapter(config)
+        elif platform_name == "wechat":
+            from .wechat_adapter import WechatAdapter
+            return WechatAdapter(config)
+        elif platform_name == "qq":
+            from .qq_adapter import QQAdapter
+            return QQAdapter(config)
+        elif platform_name == "dingtalk":
+            from .dingtalk_adapter import DingtalkAdapter
+            return DingtalkAdapter(config)
+        elif platform_name == "whatsapp":
+            from .whatsapp_adapter import WhatsAppAdapter
+            return WhatsAppAdapter(config)
+        elif platform_name == "signal":
+            from .signal_adapter import SignalAdapter
+            return SignalAdapter(config)
+        elif platform_name == "line":
+            from .line_adapter import LINEAdapter
+            return LINEAdapter(config)
+        elif platform_name == "email":
+            from .email_adapter import EmailAdapter
+            return EmailAdapter(config)
+        elif platform_name == "webhook":
+            from .webhook_adapter import WebhookAdapter
+            return WebhookAdapter(config)
         else:
             self.logger.warning(f"不支持的平台: {platform_name}")
             return None
