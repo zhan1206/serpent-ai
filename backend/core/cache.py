@@ -8,7 +8,11 @@ import hashlib
 from typing import Any, Optional, Callable, Union
 import logging
 from functools import wraps
-import redis
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
 
 from backend.core.config import settings
 
@@ -26,6 +30,10 @@ class CacheManager:
         return cls._instance
     
     def __init__(self):
+        if not REDIS_AVAILABLE:
+            logger.warning("Redis 模块不可用，将使用内存缓存")
+            self._client = None
+            return
         if self._client is None:
             try:
                 self._client = redis.Redis(
@@ -49,7 +57,7 @@ class CacheManager:
                 self._client = None
     
     @property
-    def client(self) -> Optional[redis.Redis]:
+    def client(self):
         """获取Redis客户端"""
         return self._client
     
