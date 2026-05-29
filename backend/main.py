@@ -20,7 +20,7 @@ from backend.core.database import init_db, check_db_health
 from backend.models.base_model import Message
 
 # 导入工具系统集成
-from tools import get_global_registry, get_global_precompiler, get_global_distiller
+from backend.tools import get_global_registry, get_global_precompiler, get_global_distiller
 from backend.tools.builtin_tools import register_all_builtin_tools
 
 from backend.routes.efficiency import router as efficiency_router
@@ -30,10 +30,10 @@ from backend.routes.agent import router as agent_router  # Agent API routes
 from backend.routes.workflow import router as workflow_router  # Workflow API routes
 from backend.routes.voice import router as voice_router  # Voice API routes
 from backend.routes.chat import router as chat_router  # Chat API routes
-from gateways import get_gateway_manager, get_message_router
+from backend.gateways import get_gateway_manager, get_message_router
 
 # 导入效率引擎
-from efficiency import get_global_engine
+from backend.efficiency import get_global_engine
 
 # 初始化日志
 setup_logging()
@@ -215,7 +215,7 @@ async def health_check():
     # 检查记忆系统
     memory_stats = {}
     try:
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         memory_mgr = get_memory_manager()
         memory_stats = memory_mgr.get_stats()
     except Exception as e:
@@ -330,7 +330,7 @@ async def chat(
             raise HTTPException(status_code=400, detail="消息列表不能为空")
         
         # 获取记忆管理器
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         memory_mgr = get_memory_manager()
         
         # 1. 从记忆系统召回上下文
@@ -454,7 +454,7 @@ async def add_to_memory(
         message = Message(role=role, content=content)
         
         # 添加到记忆系统
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         memory_mgr = get_memory_manager()
         memory_mgr.add_message(session_id, message)
         
@@ -526,7 +526,7 @@ async def recall_from_memory(
         include_archive = data.get("include_archive", False)
         
         # 从记忆系统召回
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         memory_mgr = get_memory_manager()
         
         results = memory_mgr.recall(
@@ -827,7 +827,7 @@ async def get_memory_stats():
     获取记忆系统统计信息
     """
     try:
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         memory_mgr = get_memory_manager()
         
         stats = memory_mgr.get_stats()
@@ -871,7 +871,7 @@ async def clear_memory(
     清空记忆（指定会话或全部）
     """
     try:
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         memory_mgr = get_memory_manager()
         
         if session_id:

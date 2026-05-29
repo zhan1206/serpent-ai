@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/efficiency", tags=["效率引擎"])
 async def get_efficiency_stats():
     """获取效率引擎统计信息"""
     try:
-        from efficiency import get_global_engine
+        from backend.efficiency import get_global_engine
         engine = get_global_engine()
         return {
             "token_optimizer": engine["token_optimizer"].get_stats(),
@@ -27,7 +27,7 @@ async def get_efficiency_stats():
 async def compress_output(request: Request):
     """压缩模型输出"""
     try:
-        from efficiency import get_global_engine
+        from backend.efficiency import get_global_engine
         data = await request.json()
         output = data.get("output", "")
         format_type = data.get("format", "plain")
@@ -47,7 +47,7 @@ async def compress_output(request: Request):
 async def distill_prompt(request: Request):
     """蒸馏提示词"""
     try:
-        from efficiency import get_global_engine
+        from backend.efficiency import get_global_engine
         data = await request.json()
         prompt = data.get("prompt", "")
         context = data.get("context")
@@ -66,7 +66,7 @@ async def distill_prompt(request: Request):
 async def cache_operation(request: Request, op: str = Query(..., alias="operation")):
     """缓存操作"""
     try:
-        from efficiency import get_global_engine
+        from backend.efficiency import get_global_engine
         data = await request.json() if op == "set" else {}
         cache_type = data.get("cache_type", "prompt")
         key = data.get("key", "")
@@ -92,7 +92,7 @@ async def cache_operation(request: Request, op: str = Query(..., alias="operatio
 async def efficiency_health_check():
     """效率引擎健康检查"""
     try:
-        from efficiency import get_global_engine
+        from backend.efficiency import get_global_engine
         engine = get_global_engine()
         
         # 检查各个组件

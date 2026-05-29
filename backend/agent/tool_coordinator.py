@@ -66,7 +66,7 @@ class ToolCoordinator:
     def _get_registry(self):
         """获取工具注册表"""
         if self.registry is None:
-            from tools import get_global_registry
+            from backend.tools import get_global_registry
             self.registry = get_global_registry()
         return self.registry
     

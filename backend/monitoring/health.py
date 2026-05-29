@@ -392,7 +392,7 @@ def check_memory_health() -> ComponentHealth:
     start_time = time.time()
     
     try:
-        from memory import get_memory_manager
+        from backend.memory import get_memory_manager
         
         memory_mgr = get_memory_manager()
         stats = memory_mgr.get_stats()

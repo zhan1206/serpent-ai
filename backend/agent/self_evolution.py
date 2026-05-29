@@ -471,7 +471,7 @@ class SelfEvolution:
     
     def _get_registry(self):
         """获取工具注册表"""
-        from tools import get_global_registry
+        from backend.tools import get_global_registry
         return get_global_registry()
     
     def _format_context(self, context: Dict[str, Any]) -> str:

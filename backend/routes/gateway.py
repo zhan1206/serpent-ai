@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/gateway", tags=["多通道网关"])
 async def initialize_gateways(request: Request):
     """初始化所有启用的网关平台"""
     try:
-        from gateways import get_gateway_manager
+        from backend.gateway import get_gateway_manager
         data = await request.json()
         manager = get_gateway_manager()
         results = await manager.initialize(data.get("platforms", {}))
@@ -28,7 +28,7 @@ async def initialize_gateways(request: Request):
 async def gateway_health_check():
     """网关健康检查"""
     try:
-        from gateways import get_gateway_manager
+        from backend.gateway import get_gateway_manager
         manager = get_gateway_manager()
         return await manager.health_check()
     except Exception as e:
@@ -39,7 +39,7 @@ async def gateway_health_check():
 async def send_gateway_message(request: Request):
     """发送消息到指定平台"""
     try:
-        from gateways import get_gateway_manager, Response
+        from backend.gateway import get_gateway_manager, Response
         data = await request.json()
         platform = data.get("platform")
         message = data.get("message", "")
@@ -64,7 +64,7 @@ async def send_gateway_message(request: Request):
 async def broadcast_message(request: Request):
     """广播消息到多个平台"""
     try:
-        from gateways import get_gateway_manager, Response
+        from backend.gateway import get_gateway_manager, Response
         data = await request.json()
         platforms = data.get("platforms", [])
         message = data.get("message", "")
@@ -84,7 +84,7 @@ async def broadcast_message(request: Request):
 async def register_message_handler(request: Request):
     """注册消息处理器"""
     try:
-        from gateways import get_message_router
+        from backend.gateway import get_message_router
         data = await request.json()
         platform = data.get("platform")
         handler_path = data.get("handler")
@@ -120,7 +120,7 @@ async def register_message_handler(request: Request):
 async def gateway_health_check():
     """网关健康检查"""
     try:
-        from gateways import get_gateway_manager
+        from backend.gateway import get_gateway_manager
         manager = get_gateway_manager()
         
         # 检查所有已注册的适配器

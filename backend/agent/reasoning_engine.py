@@ -162,7 +162,7 @@ class ReasoningEngine:
         
         # 获取工具列表
         try:
-            from tools import get_global_registry
+            from backend.tools import get_global_registry
             registry = get_global_registry()
             tools = registry.list_tools()
             tools_info = self._format_tools(tools[:20])  # 限制数量
