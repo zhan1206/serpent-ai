@@ -7,9 +7,9 @@ import pytest
 import tempfile
 import shutil
 from unittest.mock import patch, MagicMock, mock_open
-from skills.skill import Skill, SkillManifest
-from skills.skill_installer import SkillInstaller
-from skills.skill_store import SkillStore
+from backend.skills.skill import Skill, SkillManifest
+from backend.skills.skill_installer import SkillInstaller
+from backend.skills.skill_store import SkillStore
 
 
 # ---- SkillManifest ----

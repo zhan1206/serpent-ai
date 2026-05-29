@@ -10,7 +10,7 @@ class TestConfig:
 
     def test_settings_load(self):
         """测试设置加载"""
-        from core.config import get_settings
+        from backend.core.config import get_settings
 
         settings = get_settings()
         assert settings.APP_NAME == "SerpentAI"
@@ -18,14 +18,14 @@ class TestConfig:
 
     def test_debug_mode(self):
         """测试调试模式"""
-        from core.config import get_settings
+        from backend.core.config import get_settings
 
         settings = get_settings()
         assert isinstance(settings.DEBUG, bool)
 
     def test_data_dir(self):
         """测试数据目录"""
-        from core.config import get_settings
+        from backend.core.config import get_settings
 
         settings = get_settings()
         assert settings.DATA_DIR is not None
@@ -36,7 +36,7 @@ class TestDatabase:
 
     def test_init_db(self):
         """测试数据库初始化"""
-        from core.database import init_db
+        from backend.core.database import init_db
 
         # init_db是同步函数
         try:
@@ -46,7 +46,7 @@ class TestDatabase:
 
     def test_check_db_health(self):
         """测试健康检查返回类型"""
-        from core.database import check_db_health
+        from backend.core.database import check_db_health
 
         health = check_db_health()
         assert isinstance(health, dict)
@@ -56,13 +56,13 @@ class TestDatabase:
 
     def test_init_chroma(self):
         """测试ChromaDB初始化函数存在"""
-        from core.database import init_chroma
+        from backend.core.database import init_chroma
 
         assert callable(init_chroma)
 
     def test_get_or_create_collection(self):
         """测试获取或创建集合函数存在"""
-        from core.database import get_or_create_collection
+        from backend.core.database import get_or_create_collection
 
         assert callable(get_or_create_collection)
 
@@ -72,7 +72,7 @@ class TestCache:
 
     def test_cache_manager_singleton(self):
         """测试缓存管理器单例模式"""
-        from core.cache import CacheManager
+        from backend.core.cache import CacheManager
         # CacheManager单例需要Redis连接，可能超时
         # 仅验证类存在且为单例模式
         assert hasattr(CacheManager, '_instance')
@@ -81,7 +81,7 @@ class TestCache:
 
     def test_cache_manager_has_methods(self):
         """测试缓存管理器方法存在"""
-        from core.cache import CacheManager
+        from backend.core.cache import CacheManager
 
         assert hasattr(CacheManager, 'get')
         assert hasattr(CacheManager, 'set')
@@ -91,7 +91,7 @@ class TestCache:
 
     def test_cached_decorator(self):
         """测试缓存装饰器存在"""
-        from core.cache import get_cache_manager, cached
+        from backend.core.cache import get_cache_manager, cached
 
         assert callable(cached)
         assert callable(get_cache_manager)
@@ -102,7 +102,7 @@ class TestEncryption:
 
     def test_generate_key(self):
         """测试密钥生成"""
-        from core.encryption import generate_key
+        from backend.core.encryption import generate_key
 
         key = generate_key()
         assert key is not None
@@ -110,7 +110,7 @@ class TestEncryption:
 
     def test_encrypt_decrypt(self):
         """测试加密解密"""
-        from core.encryption import encrypt, decrypt
+        from backend.core.encryption import encrypt, decrypt
 
         original_data = "测试数据Hello World"
 
@@ -122,7 +122,7 @@ class TestEncryption:
 
     def test_hash_password(self):
         """测试密码哈希"""
-        from core.encryption import EncryptionManager
+        from backend.core.encryption import EncryptionManager
 
         password = "test_password_123"
 
@@ -134,7 +134,7 @@ class TestEncryption:
 
     def test_generate_token(self):
         """测试令牌生成"""
-        from core.encryption import generate_token, verify_token
+        from backend.core.encryption import generate_token, verify_token
 
         user_id = "test_user"
         token = generate_token(user_id)
@@ -145,7 +145,7 @@ class TestEncryption:
 
     def test_hash_sha256(self):
         """测试SHA-256哈希"""
-        from core.encryption import EncryptionManager
+        from backend.core.encryption import EncryptionManager
 
         hash_value = EncryptionManager.hash_sha256("test")
         assert isinstance(hash_value, str)
@@ -153,7 +153,7 @@ class TestEncryption:
 
     def test_encrypt_data_convenience(self):
         """测试便捷加密函数"""
-        from core.encryption import encrypt_data, decrypt_data
+        from backend.core.encryption import encrypt_data, decrypt_data
 
         encrypted = encrypt_data("test")
         decrypted = decrypt_data(encrypted)
@@ -161,7 +161,7 @@ class TestEncryption:
 
     def test_verify_data_integrity(self):
         """测试数据完整性验证"""
-        from core.encryption import hash_data, verify_data_integrity
+        from backend.core.encryption import hash_data, verify_data_integrity
 
         hash_val = hash_data("test data")
         assert verify_data_integrity("test data", hash_val) is True

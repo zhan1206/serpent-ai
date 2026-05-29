@@ -5,7 +5,7 @@ import json
 import tempfile
 import shutil
 from unittest.mock import MagicMock, patch
-from plugins.plugin_store import PluginStore, StorePluginInfo
+from backend.plugins.plugin_store import PluginStore, StorePluginInfo
 
 
 class TestStorePluginInfo:
@@ -16,7 +16,7 @@ class TestStorePluginInfo:
         assert d["version"] == "1.0"
 
     def test_from_manifest(self):
-        from plugins.plugin_manifest import PluginManifest
+        from backend.plugins.plugin_manifest import PluginManifest
         manifest = PluginManifest(
             name="test_plugin", version="2.0", description="A test",
             plugin_type="tool", author="dev", license="MIT",
@@ -122,9 +122,9 @@ class TestPluginStore:
             "signature": "sig123",
         }
         with patch.object(store, "_fetch_remote_plugin", return_value=plugin_data):
-            with patch.object(store, "_download_and_extract", return_value="/tmp/plugin"):
+            with patch.object(store, "_download_and_extract", return_value=os.path.join(os.sep, "tmp", "plugin")):
                 # Create a fake plugin.json
-                with patch("plugins.plugin_store.PluginManifest") as MockManifest:
+                with patch("backend.plugins.plugin_store.PluginManifest") as MockManifest:
                     mock_manifest = MagicMock()
                     mock_manifest.name = "remote_plugin"
                     mock_manifest.version = "1.0"
@@ -139,8 +139,8 @@ class TestPluginStore:
                     mock_manifest.to_dict.return_value = {}
                     mock_manifest.dependencies = {}
                     MockManifest.from_file.return_value = mock_manifest
-                    with patch("plugins.plugin_store.os.path.exists", return_value=True):
-                        with patch("plugins.plugin_store.get_plugin_manager", return_value=MagicMock()):
+                    with patch("backend.plugins.plugin_store.os.path.exists", return_value=True):
+                        with patch("backend.plugins.plugin_store.get_plugin_manager", return_value=MagicMock()):
                             result = store.install("remote_plugin")
                             assert result["success"] is True
 

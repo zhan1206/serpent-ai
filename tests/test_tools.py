@@ -9,7 +9,7 @@ class TestToolRegistry:
 
     def test_register_builtin_tool(self):
         """测试注册内置工具"""
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         tool_def = {
@@ -28,14 +28,14 @@ class TestToolRegistry:
 
     def test_register_custom_tool(self):
         """测试注册自定义工具"""
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         registry.register_custom_tool({"name": "custom_tool", "description": "自定义", "parameters": {}})
         assert registry.get_tool("custom_tool") is not None
 
     def test_list_tools(self):
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
         registry = ToolRegistry()
         for i in range(3):
             registry.register_builtin_tool({"name": f"tool_{i}", "description": f"工具{i}"})
@@ -43,7 +43,7 @@ class TestToolRegistry:
         assert len(tools) >= 3
 
     def test_search_tools(self):
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "web_search", "description": "搜索网页"})
         registry.register_builtin_tool({"name": "calculator", "description": "计算器"})
@@ -51,7 +51,7 @@ class TestToolRegistry:
         assert len(results) > 0
 
     def test_remove_tool(self):
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "temp_tool", "description": "临时"})
         assert registry.get_tool("temp_tool") is not None
@@ -59,14 +59,14 @@ class TestToolRegistry:
         assert registry.get_tool("temp_tool") is None
 
     def test_clear(self):
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "t1", "description": "d1"})
         registry.clear()
         assert len(registry.list_tools()) == 0
 
     def test_list_categories(self):
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_registry import ToolRegistry
         registry = ToolRegistry()
         categories = registry.list_categories()
         assert isinstance(categories, (list, set, tuple, dict))
@@ -76,20 +76,20 @@ class TestToolExecutor:
     """工具执行器测试"""
 
     def test_create_executor(self):
-        from tools.tool_executor import ToolExecutor
+        from backend.tools.tool_executor import ToolExecutor
         executor = ToolExecutor()
         assert executor is not None
         assert executor.registry is not None
 
     def test_executor_methods(self):
-        from tools.tool_executor import ToolExecutor
+        from backend.tools.tool_executor import ToolExecutor
         executor = ToolExecutor()
         assert hasattr(executor, 'execute')
         assert hasattr(executor, 'batch_execute')
         assert hasattr(executor, 'execute_in_sandbox')
 
     def test_executor_config(self):
-        from tools.tool_executor import ToolExecutor
+        from backend.tools.tool_executor import ToolExecutor
         executor = ToolExecutor()
         assert executor.timeout is not None
         assert executor.max_retries is not None
@@ -99,8 +99,8 @@ class TestToolPrecompiler:
     """工具预编译器测试"""
 
     def test_precompile_tool(self):
-        from tools.tool_precompiler import ToolPrecompiler
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "calculator", "description": "计算器", "parameters": {"type": "object", "properties": {"expression": {"type": "string"}}}})
@@ -110,8 +110,8 @@ class TestToolPrecompiler:
         assert compiled is not None
 
     def test_get_tool_id(self):
-        from tools.tool_precompiler import ToolPrecompiler
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "test_tool", "description": "测试"})
@@ -123,8 +123,8 @@ class TestToolPrecompiler:
         assert precompiler.get_tool_name(tool_id) == "test_tool"
 
     def test_precompile_all(self):
-        from tools.tool_precompiler import ToolPrecompiler
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         for i in range(3):
@@ -135,8 +135,8 @@ class TestToolPrecompiler:
         assert len(precompiler.compiled_tools) >= 3
 
     def test_get_tools_prompt(self):
-        from tools.tool_precompiler import ToolPrecompiler
-        from tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "calc", "description": "计算器"})
@@ -150,9 +150,9 @@ class TestToolDistiller:
     """工具蒸馏器测试"""
 
     def test_distill_tool(self):
-        from tools.tool_distiller import ToolDistiller
-        from tools.tool_registry import ToolRegistry
-        from tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_distiller import ToolDistiller
+        from backend.tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
 
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "web_search", "description": "A powerful web search tool."})
@@ -164,9 +164,9 @@ class TestToolDistiller:
         assert distilled is not None
 
     def test_distill_all(self):
-        from tools.tool_distiller import ToolDistiller
-        from tools.tool_registry import ToolRegistry
-        from tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_distiller import ToolDistiller
+        from backend.tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
 
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "t1", "description": "工具1"})
@@ -179,9 +179,9 @@ class TestToolDistiller:
         assert len(distiller.distilled_tools) >= 2
 
     def test_get_distilled_prompt(self):
-        from tools.tool_distiller import ToolDistiller
-        from tools.tool_registry import ToolRegistry
-        from tools.tool_precompiler import ToolPrecompiler
+        from backend.tools.tool_distiller import ToolDistiller
+        from backend.tools.tool_registry import ToolRegistry
+        from backend.tools.tool_precompiler import ToolPrecompiler
 
         registry = ToolRegistry()
         registry.register_builtin_tool({"name": "calc", "description": "计算器"})
@@ -198,11 +198,11 @@ class TestBuiltinTools:
     """内置工具测试"""
 
     def test_list_builtin_tools(self):
-        from tools.builtin_tools import list_builtin_tools
+        from backend.tools.builtin_tools import list_builtin_tools
         tools = list_builtin_tools()
         assert isinstance(tools, list)
 
     def test_search_builtin_tools(self):
-        from tools.builtin_tools import search_builtin_tools
+        from backend.tools.builtin_tools import search_builtin_tools
         results = search_builtin_tools("search")
         assert isinstance(results, list)

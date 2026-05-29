@@ -31,21 +31,21 @@ from tools import (
     ToolPrecompiler, get_global_precompiler,
     ToolDistiller, get_global_distiller
 )
-from tools.tool_executor import ToolExecutor, ToolExecutionError
-from tools.tool_sandbox import ToolSandbox, DockerSandbox, create_sandbox
+from backend.tools.tool_executor import ToolExecutor, ToolExecutionError
+from backend.tools.tool_sandbox import ToolSandbox, DockerSandbox, create_sandbox
 # SandboxError is not defined in tool_sandbox.py, creating mock
 class SandboxError(Exception):
     pass
 try:
-    from tools.tool_sandbox import ToolSandbox
+    from backend.tools.tool_sandbox import ToolSandbox
 except Exception:
     pass
-from tools.builtin_tools import (
+from backend.tools.builtin_tools import (
     get_current_time, calculate, hash_text,
     generate_password, json_format,
     register_all_builtin_tools
 )
-from tools.system_tools import (
+from backend.tools.system_tools import (
     fs_list_directory, fs_read_file, fs_write_file,
     fs_delete, fs_copy, fs_move, fs_mkdir, fs_exists,
     shell_execute, process_list, process_kill,
@@ -60,7 +60,7 @@ from tools.system_tools import (
 @pytest.fixture
 def reset_global_registry():
     """Reset global registry before each test."""
-    from tools.tool_registry import _global_registry
+    from backend.tools.tool_registry import _global_registry
     globals()['_global_registry_backup'] = None
     yield
     import tools.tool_registry as tr

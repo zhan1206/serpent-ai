@@ -3,7 +3,7 @@ import pytest
 import json
 import time
 from unittest.mock import MagicMock, patch
-from core.message_queue import (
+from backend.core.message_queue import (
     MessageQueue, _InMemoryQueueBackend, _RedisQueueBackend,
     get_message_queue, reset_message_queue,
 )

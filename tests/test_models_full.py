@@ -14,14 +14,14 @@ import pytest
 backend_path = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
 
-from models.base_model import (
+from backend.models.base_model import (
     Message, ModelResponse, TokenUsage, BaseModelAdapter,
     create_adapter, list_supported_models, estimate_tokens,
     truncate_messages
 )
-from models.token_counter import TokenCounter, get_global_counter
-from models.registry import ModelRegistry, get_global_registry
-from models.model_router import (
+from backend.models.token_counter import TokenCounter, get_global_counter
+from backend.models.registry import ModelRegistry, get_global_registry
+from backend.models.model_router import (
     ModelRouter, TaskComplexity, ModelScore, RoutingRule,
     get_global_router
 )
@@ -231,7 +231,7 @@ class TestOpenAIAdapter:
             mock_settings.OPENAI_API_KEY = "test-key"
             mock_settings.OPENAI_API_BASE = None
 
-            from models.openai_adapter import OpenAIAdapter
+            from backend.models.openai_adapter import OpenAIAdapter
             adapter = OpenAIAdapter("gpt-4o")
             result = adapter.initialize()
 
@@ -245,7 +245,7 @@ class TestOpenAIAdapter:
             mock_settings.openai = Mock()
             mock_settings.openai.api_key = None
 
-            from models.openai_adapter import OpenAIAdapter
+            from backend.models.openai_adapter import OpenAIAdapter
             adapter = OpenAIAdapter("gpt-4o")
             result = adapter.initialize()
 
@@ -268,7 +268,7 @@ class TestOpenAIAdapter:
             mock_settings.OPENAI_API_KEY = "test-key"
             mock_settings.OPENAI_API_BASE = None
 
-            from models.openai_adapter import OpenAIAdapter
+            from backend.models.openai_adapter import OpenAIAdapter
             adapter = OpenAIAdapter("gpt-4o")
             adapter.is_initialized = True
             adapter.client = mock_client
@@ -281,13 +281,13 @@ class TestOpenAIAdapter:
             assert response.output_tokens == 15
 
     def test_count_tokens(self):
-        from models.openai_adapter import OpenAIAdapter
+        from backend.models.openai_adapter import OpenAIAdapter
         adapter = OpenAIAdapter("gpt-4o")
         result = adapter.count_tokens("Hello, world!")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.openai_adapter import OpenAIAdapter
+        from backend.models.openai_adapter import OpenAIAdapter
         adapter = OpenAIAdapter("gpt-4o")
         info = adapter.get_model_info()
         assert info["name"] == "gpt-4o"
@@ -295,7 +295,7 @@ class TestOpenAIAdapter:
         assert "pricing" in info
 
     def test_estimate_cost(self):
-        from models.openai_adapter import OpenAIAdapter
+        from backend.models.openai_adapter import OpenAIAdapter
         adapter = OpenAIAdapter("gpt-4o")
         cost = adapter.estimate_cost(1000, 500)
         assert cost > 0
@@ -316,14 +316,14 @@ class TestAnthropicAdapter:
             mock_settings.ANTHROPIC_API_KEY = "test-key"
             mock_settings.ANTHROPIC_API_BASE = None
 
-            from models.anthropic_adapter import AnthropicAdapter
+            from backend.models.anthropic_adapter import AnthropicAdapter
             adapter = AnthropicAdapter("claude-3-opus")
             result = adapter.initialize()
 
             assert result is True
 
     def test_convert_messages_to_anthropic_format(self):
-        from models.anthropic_adapter import AnthropicAdapter
+        from backend.models.anthropic_adapter import AnthropicAdapter
         adapter = AnthropicAdapter("claude-3-opus")
 
         messages = [
@@ -356,7 +356,7 @@ class TestAnthropicAdapter:
             mock_settings.ANTHROPIC_API_KEY = "test-key"
             mock_settings.ANTHROPIC_API_BASE = None
 
-            from models.anthropic_adapter import AnthropicAdapter
+            from backend.models.anthropic_adapter import AnthropicAdapter
             adapter = AnthropicAdapter("claude-3-opus")
             adapter.is_initialized = True
             adapter.client = mock_client
@@ -368,20 +368,20 @@ class TestAnthropicAdapter:
             assert response.content == "Test response from Anthropic"
 
     def test_count_tokens(self):
-        from models.anthropic_adapter import AnthropicAdapter
+        from backend.models.anthropic_adapter import AnthropicAdapter
         adapter = AnthropicAdapter("claude-3-opus")
         result = adapter.count_tokens("Hello")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.anthropic_adapter import AnthropicAdapter
+        from backend.models.anthropic_adapter import AnthropicAdapter
         adapter = AnthropicAdapter("claude-3-opus")
         info = adapter.get_model_info()
         assert info["provider"] == "anthropic"
         assert info["supports_tools"] is True
 
     def test_estimate_cost(self):
-        from models.anthropic_adapter import AnthropicAdapter
+        from backend.models.anthropic_adapter import AnthropicAdapter
         adapter = AnthropicAdapter("claude-3-opus")
         cost = adapter.estimate_cost(1000, 500)
         assert cost > 0
@@ -395,14 +395,14 @@ class TestDeepSeekAdapter:
     def test_initialize_no_key(self):
         """Test initialization without API key"""
         with patch.dict(os.environ, {}, clear=True):
-            from models.deepseek_adapter import DeepSeekAdapter
+            from backend.models.deepseek_adapter import DeepSeekAdapter
             adapter = DeepSeekAdapter("deepseek-chat")
             result = adapter.initialize()
             assert result is False
 
     def test_generate_with_mock_client(self, sample_messages, mock_openai_client):
         """Test generate with pre-configured mock"""
-        from models.deepseek_adapter import DeepSeekAdapter
+        from backend.models.deepseek_adapter import DeepSeekAdapter
         adapter = DeepSeekAdapter("deepseek-chat")
         adapter.is_initialized = True
         adapter.client = mock_openai_client
@@ -413,19 +413,19 @@ class TestDeepSeekAdapter:
         assert response.content == "Test response"
 
     def test_count_tokens(self):
-        from models.deepseek_adapter import DeepSeekAdapter
+        from backend.models.deepseek_adapter import DeepSeekAdapter
         adapter = DeepSeekAdapter("deepseek-chat")
         result = adapter.count_tokens("Hello, 你好")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.deepseek_adapter import DeepSeekAdapter
+        from backend.models.deepseek_adapter import DeepSeekAdapter
         adapter = DeepSeekAdapter("deepseek-chat")
         info = adapter.get_model_info()
         assert info["provider"] == "deepseek"
 
     def test_estimate_cost(self):
-        from models.deepseek_adapter import DeepSeekAdapter
+        from backend.models.deepseek_adapter import DeepSeekAdapter
         adapter = DeepSeekAdapter("deepseek-chat")
         cost = adapter._estimate_cost(1000, 500)
         assert cost > 0
@@ -439,14 +439,14 @@ class TestDoubaoAdapter:
     def test_initialize_no_key(self):
         """Test initialization without API key"""
         with patch.dict(os.environ, {}, clear=True):
-            from models.doubao_adapter import DoubaoAdapter
+            from backend.models.doubao_adapter import DoubaoAdapter
             adapter = DoubaoAdapter("doubao-pro-32k")
             result = adapter.initialize()
             assert result is False
 
     def test_generate_with_mock_client(self, sample_messages, mock_openai_client):
         """Test generate with pre-configured mock"""
-        from models.doubao_adapter import DoubaoAdapter
+        from backend.models.doubao_adapter import DoubaoAdapter
         adapter = DoubaoAdapter("doubao-pro-32k")
         adapter.is_initialized = True
         adapter.client = mock_openai_client
@@ -456,19 +456,19 @@ class TestDoubaoAdapter:
         assert isinstance(response, ModelResponse)
 
     def test_count_tokens(self):
-        from models.doubao_adapter import DoubaoAdapter
+        from backend.models.doubao_adapter import DoubaoAdapter
         adapter = DoubaoAdapter("doubao-pro-32k")
         result = adapter.count_tokens("Hello")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.doubao_adapter import DoubaoAdapter
+        from backend.models.doubao_adapter import DoubaoAdapter
         adapter = DoubaoAdapter("doubao-pro-32k")
         info = adapter.get_model_info()
         assert info["provider"] == "doubao"
 
     def test_estimate_cost(self):
-        from models.doubao_adapter import DoubaoAdapter
+        from backend.models.doubao_adapter import DoubaoAdapter
         adapter = DoubaoAdapter("doubao-pro-32k")
         cost = adapter._estimate_cost(1000, 500)
         assert cost > 0
@@ -481,26 +481,26 @@ class TestGeminiAdapter:
 
     def test_create_adapter(self):
         """Test that adapter can be created"""
-        from models.gemini_adapter import GeminiAdapter
+        from backend.models.gemini_adapter import GeminiAdapter
         adapter = GeminiAdapter("gemini-1.5-flash")
         assert adapter.model_name == "gemini-1.5-flash"
         assert adapter._genai is None
         assert adapter._model is None
 
     def test_count_tokens(self):
-        from models.gemini_adapter import GeminiAdapter
+        from backend.models.gemini_adapter import GeminiAdapter
         adapter = GeminiAdapter("gemini-1.5-flash")
         result = adapter.count_tokens("Hello")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.gemini_adapter import GeminiAdapter
+        from backend.models.gemini_adapter import GeminiAdapter
         adapter = GeminiAdapter("gemini-1.5-flash")
         info = adapter.get_model_info()
         assert info["provider"] == "gemini"
 
     def test_estimate_cost(self):
-        from models.gemini_adapter import GeminiAdapter
+        from backend.models.gemini_adapter import GeminiAdapter
         adapter = GeminiAdapter("gemini-1.5-flash")
         cost = adapter._estimate_cost(1000, 500)
         assert cost > 0
@@ -513,14 +513,14 @@ class TestLlamaAdapter:
 
     def test_create_adapter(self):
         """Test that adapter can be created"""
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         adapter = LlamaAdapter("llama-3-8b")
         assert adapter.model_name == "llama-3-8b"
         assert adapter.llama is None
         assert adapter.n_ctx == 2048
 
     def test_convert_messages_to_prompt(self):
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         adapter = LlamaAdapter("llama-3-8b")
 
         messages = [
@@ -535,7 +535,7 @@ class TestLlamaAdapter:
 
     def test_generate_with_mock_llama(self, sample_messages):
         """Test generate with mocked llama instance"""
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         adapter = LlamaAdapter("llama-3-8b")
         adapter.is_initialized = True
         adapter.llama = Mock()
@@ -550,14 +550,14 @@ class TestLlamaAdapter:
         assert response.cost == 0.0  # Local model has no cost
 
     def test_get_model_info(self):
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         adapter = LlamaAdapter("llama-3-8b")
         info = adapter.get_model_info()
         assert info["provider"] == "local"
         assert info["pricing"]["input"] == 0.0
 
     def test_unload_model(self):
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         adapter = LlamaAdapter("llama-3-8b")
         adapter.llama = Mock()
         adapter.is_initialized = True
@@ -568,7 +568,7 @@ class TestLlamaAdapter:
         assert adapter.is_initialized is False
 
     def test_estimate_cost(self):
-        from models.llama_adapter import LlamaAdapter
+        from backend.models.llama_adapter import LlamaAdapter
         adapter = LlamaAdapter("llama-3-8b")
         cost = adapter.estimate_cost(100, 50)
         assert cost == 0.0
@@ -582,14 +582,14 @@ class TestQwenAdapter:
     def test_initialize_no_key(self):
         """Test initialization without API key"""
         with patch.dict(os.environ, {}, clear=True):
-            from models.qwen_adapter import QwenAdapter
+            from backend.models.qwen_adapter import QwenAdapter
             adapter = QwenAdapter("qwen-turbo")
             result = adapter.initialize()
             assert result is False
 
     def test_generate_with_mock_client(self, sample_messages, mock_openai_client):
         """Test generate with pre-configured mock"""
-        from models.qwen_adapter import QwenAdapter
+        from backend.models.qwen_adapter import QwenAdapter
         adapter = QwenAdapter("qwen-turbo")
         adapter.is_initialized = True
         adapter.client = mock_openai_client
@@ -599,19 +599,19 @@ class TestQwenAdapter:
         assert isinstance(response, ModelResponse)
 
     def test_count_tokens(self):
-        from models.qwen_adapter import QwenAdapter
+        from backend.models.qwen_adapter import QwenAdapter
         adapter = QwenAdapter("qwen-turbo")
         result = adapter.count_tokens("Hello")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.qwen_adapter import QwenAdapter
+        from backend.models.qwen_adapter import QwenAdapter
         adapter = QwenAdapter("qwen-turbo")
         info = adapter.get_model_info()
         assert info["provider"] == "qwen"
 
     def test_estimate_cost(self):
-        from models.qwen_adapter import QwenAdapter
+        from backend.models.qwen_adapter import QwenAdapter
         adapter = QwenAdapter("qwen-turbo")
         cost = adapter._estimate_cost(1000, 500)
         assert cost > 0
@@ -624,21 +624,21 @@ class TestWenxinAdapter:
 
     def test_create_with_short_name(self):
         """Test model name mapping"""
-        from models.wenxin_adapter import WenxinAdapter
+        from backend.models.wenxin_adapter import WenxinAdapter
         adapter = WenxinAdapter("ernie-4.0")
         assert adapter.model_name == "ernie-4.0-8k"
 
     def test_initialize_no_key(self):
         """Test initialization without API key"""
         with patch.dict(os.environ, {}, clear=True):
-            from models.wenxin_adapter import WenxinAdapter
+            from backend.models.wenxin_adapter import WenxinAdapter
             adapter = WenxinAdapter("ernie-4.0-8k")
             result = adapter.initialize()
             assert result is False
 
     def test_generate_with_mock_client(self, sample_messages, mock_openai_client):
         """Test generate with pre-configured mock"""
-        from models.wenxin_adapter import WenxinAdapter
+        from backend.models.wenxin_adapter import WenxinAdapter
         adapter = WenxinAdapter("ernie-4.0-8k")
         adapter.is_initialized = True
         adapter.client = mock_openai_client
@@ -648,19 +648,19 @@ class TestWenxinAdapter:
         assert isinstance(response, ModelResponse)
 
     def test_count_tokens(self):
-        from models.wenxin_adapter import WenxinAdapter
+        from backend.models.wenxin_adapter import WenxinAdapter
         adapter = WenxinAdapter("ernie-4.0-8k")
         result = adapter.count_tokens("Hello")
         assert result > 0
 
     def test_get_model_info(self):
-        from models.wenxin_adapter import WenxinAdapter
+        from backend.models.wenxin_adapter import WenxinAdapter
         adapter = WenxinAdapter("ernie-4.0-8k")
         info = adapter.get_model_info()
         assert info["provider"] == "wenxin"
 
     def test_estimate_cost(self):
-        from models.wenxin_adapter import WenxinAdapter
+        from backend.models.wenxin_adapter import WenxinAdapter
         adapter = WenxinAdapter("ernie-4.0-8k")
         cost = adapter._estimate_cost(1000, 500)
         assert cost > 0
@@ -1001,7 +1001,7 @@ class TestIntegration:
                 mock_settings.OPENAI_API_KEY = "test-key"
                 mock_settings.OPENAI_API_BASE = None
 
-                from models.openai_adapter import OpenAIAdapter
+                from backend.models.openai_adapter import OpenAIAdapter
                 adapter = OpenAIAdapter("gpt-4o")
                 adapter.is_initialized = True
                 adapter.client = mock_openai_client

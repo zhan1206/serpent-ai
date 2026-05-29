@@ -14,9 +14,9 @@ from typing import List, Any, Optional
 # 添加backend到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
-from models.base_model import BaseModelAdapter, Message, ModelResponse
-from models.registry import ModelRegistry, get_global_registry, init_default_models
-from models.mock_adapter import MockAdapter
+from backend.models.base_model import BaseModelAdapter, Message, ModelResponse
+from backend.models.registry import ModelRegistry, get_global_registry, init_default_models
+from backend.models.mock_adapter import MockAdapter
 
 
 class TestModelRegistry:
@@ -246,7 +246,7 @@ class TestInitDefaultModels:
         assert len(registry.list_models()) == 0
         
         # 直接注册Mock适配器（模拟所有真实模型失败的情况）
-        from models.mock_adapter import MockAdapter
+        from backend.models.mock_adapter import MockAdapter
         mock_adapter = MockAdapter()
         registry.register("mock", mock_adapter, set_as_default=True)
         

@@ -1,7 +1,7 @@
 """Tests for backend.memory.knowledge_graph"""
 import pytest
 from unittest.mock import MagicMock, patch
-from memory.knowledge_graph import (
+from backend.memory.knowledge_graph import (
     KnowledgeGraph, EntityExtractor, _InMemoryGraphStore, _Neo4jGraphStore,
     get_knowledge_graph, reset_knowledge_graph,
 )

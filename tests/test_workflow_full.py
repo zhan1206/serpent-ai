@@ -26,13 +26,13 @@ import pytest
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
-from workflow.engine import (
+from backend.workflow.engine import (
     NodeType, WorkflowStatus, NodeStatus,
     NodeConfig, WorkflowNode, Edge, Workflow, WorkflowEngine
 )
-from workflow.editor import WorkflowEditor
-from workflow.executor import WorkflowExecutor
-from workflow.scheduler import TriggerType, WorkflowScheduler
+from backend.workflow.editor import WorkflowEditor
+from backend.workflow.executor import WorkflowExecutor
+from backend.workflow.scheduler import TriggerType, WorkflowScheduler
 
 
 # ==================== Fixtures ====================

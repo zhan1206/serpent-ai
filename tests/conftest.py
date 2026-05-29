@@ -53,7 +53,7 @@ def test_cache_dir(tmp_path) -> Path:
 @pytest.fixture
 def mock_settings(monkeypatch):
     """模拟设置用于测试"""
-    from core.config import Settings
+    from backend.core.config import Settings
     
     class TestSettings(Settings):
         DEBUG = True

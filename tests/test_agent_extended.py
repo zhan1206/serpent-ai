@@ -295,7 +295,7 @@ class TestConversationContext:
     
     def test_custom_values(self):
         from backend.agent import ConversationContext
-        from models.base_model import Message
+        from backend.models.base_model import Message
         
         context = ConversationContext(
             session_id="test",
@@ -1791,7 +1791,7 @@ class TestIntegration:
     def test_full_agent_context_flow(self):
         """测试完整的智能体上下文流程"""
         from backend.agent import SerpentAgent, Task, TaskStatus
-        from models.base_model import Message
+        from backend.models.base_model import Message
         
         agent = SerpentAgent()
         

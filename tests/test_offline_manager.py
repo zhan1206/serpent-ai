@@ -1,7 +1,7 @@
 """Tests for backend.core.offline_manager"""
 import pytest
 from unittest.mock import patch, MagicMock
-from core.offline_manager import OfflineManager, NetworkStatus, QueuedMessage
+from backend.core.offline_manager import OfflineManager, NetworkStatus, QueuedMessage
 
 
 class TestQueuedMessage:
@@ -36,7 +36,7 @@ class TestOfflineManager:
         assert manager.is_offline is False
 
     def test_check_network_online(self, manager):
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             mock_sock = MagicMock()
             mock_socket.create_connection.return_value = mock_sock
             result = manager.check_network()
@@ -44,7 +44,7 @@ class TestOfflineManager:
             assert manager.is_online is True
 
     def test_check_network_offline(self, manager):
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             import socket as real_socket
             mock_socket.create_connection.side_effect = real_socket.timeout()
             mock_socket.timeout = real_socket.timeout
@@ -54,7 +54,7 @@ class TestOfflineManager:
             assert manager.is_offline is True
 
     def test_check_network_os_error(self, manager):
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             mock_socket.create_connection.side_effect = OSError("fail")
             mock_socket.timeout = TimeoutError
             mock_socket.error = OSError
@@ -67,7 +67,7 @@ class TestOfflineManager:
         manager.register_callback("offline", lambda d: events.append("offline"))
 
         # Go offline first
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             import socket as real_socket
             mock_socket.create_connection.side_effect = real_socket.timeout()
             mock_socket.timeout = real_socket.timeout
@@ -77,7 +77,7 @@ class TestOfflineManager:
         events.clear()
 
         # Go online
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             mock_sock = MagicMock()
             mock_socket.create_connection.return_value = mock_sock
             manager.check_network()
@@ -100,7 +100,7 @@ class TestOfflineManager:
             raise RuntimeError("fail")
         manager.register_callback("status_change", bad_cb)
         # Should not raise
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             mock_sock = MagicMock()
             mock_socket.create_connection.return_value = mock_sock
             manager.check_network()
@@ -219,7 +219,7 @@ class TestOfflineManager:
     def test_auto_sync_on_status_change(self):
         m = OfflineManager(auto_sync=True)
         m.enqueue("ch", "t", {})
-        with patch("core.offline_manager.socket") as mock_socket:
+        with patch("backend.core.offline_manager.socket") as mock_socket:
             mock_sock = MagicMock()
             mock_socket.create_connection.return_value = mock_sock
             m.check_network()
