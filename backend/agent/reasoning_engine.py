@@ -6,6 +6,7 @@ SerpentAI 推理引擎
 import asyncio
 import logging
 import json
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Any, Optional
@@ -179,9 +180,17 @@ class ReasoningEngine:
             available_tools=tools_info
         )
         
-        # 调用模型
+        # 调用模型（优先使用结构化输出）
         try:
             messages = [Message(role="system", content=prompt)]
+            
+            # 尝试结构化 JSON 输出（更可靠）
+            result = await self._structured_reasoning(messages, step)
+            if result:
+                logger.debug(f"推理步骤 {step} 完成（结构化）| 类型: {result.action_type} | 置信度: {result.confidence}")
+                return result
+            
+            # 回退到字符串解析
             response = self.model_adapter.generate(messages)
             response_text = response.content
         except Exception as e:
@@ -197,8 +206,57 @@ class ReasoningEngine:
         # 解析响应
         result = self._parse_reasoning_response(response_text, step)
         
-        logger.debug(f"推理步骤 {step} 完成 | 类型: {result.action_type} | 置信度: {result.confidence}")
+        logger.debug(f"推理步骤 {step} 完成（回退解析）| 类型: {result.action_type} | 置信度: {result.confidence}")
         return result
+    
+    async def _structured_reasoning(self, messages: List[Message], step: int) -> Optional[ReasoningResult]:
+        """
+        使用结构化 JSON 输出进行推理（更可靠）
+        
+        通过在 prompt 中要求模型返回 JSON，减少字符串解析的错误。
+        """
+        structured_prompt = messages[0].content + """
+
+【重要】请以 JSON 格式返回你的决策，不要包含其他内容：
+
+{
+    "action_type": "TOOL | RESPONSE | TASK",
+    "tool_name": "工具名称（仅当 action_type=TOOL 时）",
+    "arguments": {"参数名": "参数值"}（仅当 action_type=TOOL 时）,
+    "response_content": "回答内容（仅当 action_type=RESPONSE 时）",
+    "task_action": "create | complete | cancel（仅当 action_type=TASK 时）",
+    "task_description": "任务描述（仅当 action_type=TASK 时）",
+    "confidence": 0.85,
+    "reasoning": "你的推理过程"
+}
+"""
+        
+        try:
+            structured_messages = [Message(role="system", content=structured_prompt)]
+            response = self.model_adapter.generate(structured_messages)
+            
+            # 提取 JSON
+            json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+            if not json_match:
+                return None
+            
+            data = json.loads(json_match.group())
+            
+            result = ReasoningResult(
+                thought=data.get("reasoning", ""),
+                action_type=data.get("action_type", "RESPONSE").lower(),
+                tool_name=data.get("tool_name"),
+                arguments=data.get("arguments", {}),
+                response_content=data.get("response_content", ""),
+                task_action=data.get("task_action"),
+                task_description=data.get("task_description"),
+                confidence=min(1.0, max(0.0, float(data.get("confidence", 0.5)))),
+                reasoning_steps=[f"步骤 {step}: 结构化推理"]
+            )
+            return result
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.debug(f"结构化推理解析失败，回退到字符串解析: {e}")
+            return None
     
     def _format_tools(self, tools: List[Dict]) -> str:
         """格式化工具列表"""
@@ -218,14 +276,13 @@ class ReasoningEngine:
     
     def _get_recent_messages(self, context: str) -> str:
         """获取最近的对话历史"""
-        # 从上下文中提取消息（如果有）
         if "最近消息" in context:
             return context.split("最近消息")[-1].split("【")[0]
         return "无历史消息"
     
     def _parse_reasoning_response(self, response: str, step: int) -> ReasoningResult:
-        """解析推理响应"""
-        
+        """解析推理响应（回退方案）"""
+        # 保留原有字符串解析逻辑作为回退
         result = ReasoningResult(
             thought="",
             action_type="RESPONSE",
@@ -260,7 +317,6 @@ class ReasoningEngine:
         for line in lines:
             if "**置信度**:" in line or "置信度" in line:
                 try:
-                    # 尝试提取数字
                     import re
                     numbers = re.findall(r'0\.\d+|1\.0', line)
                     if numbers:
@@ -291,13 +347,10 @@ class ReasoningEngine:
         for line in lines:
             if "工具名称" in line or "tool_name" in line.lower():
                 in_tool_section = True
-                # 提取工具名
                 parts = line.split(":")
                 if len(parts) > 1:
                     tool_name = parts[-1].strip().strip('`').strip()
-            
             elif in_tool_section and "参数" in line:
-                # 提取参数
                 parts = line.split(":")
                 if len(parts) > 1:
                     param_str = parts[-1].strip().strip('`').strip()

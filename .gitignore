@@ -253,3 +253,8 @@ Desktop.ini
 # Local config
 local_config.yaml
 secrets.yaml
+
+# Config secrets (generated keys)
+backend/config/.encryption_key
+backend/config/.neo4j_password
+backend/config/.secret_key

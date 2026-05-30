@@ -136,13 +136,21 @@ app.include_router(chat_router)  # Chat API routes (SSE streaming)
 
 # ==================== 中间件配置 ====================
 
-# CORS配置
+# CORS配置 - 安全限制
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+]
+if settings.ENVIRONMENT == "development":
+    ALLOWED_ORIGINS.append("http://localhost:5173")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ==================== 路由配置 ====================
@@ -312,7 +320,13 @@ async def list_models():
 )
 async def chat(
     request: Request,
-    session_id: str = Query(..., description="会话ID（用于记忆系统关联）")
+    session_id: str = Query(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="会话ID（用于记忆系统关联，1-128字符）",
+        regex=r"^[a-zA-Z0-9_-]+$"
+    )
 ):
     """
     聊天接口（集成记忆系统）

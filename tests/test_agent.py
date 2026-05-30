@@ -359,7 +359,7 @@ class TestSelfEvolution:
         
         evolution = SelfEvolution()
         
-        assert evolution.auto_fix == True
+        assert evolution.auto_fix == False  # 安全改进：默认关闭自动修复，需管理员审批
         assert evolution.auto_optimize == False
         assert evolution.learn_from_errors == True
         assert len(evolution.evolution_log) == 0

@@ -2,6 +2,7 @@
 SerpentAI 记忆系统 - 短期记忆
 存储最近7天对话，使用向量数据库进行语义检索，响应时间 <100ms
 """
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -85,7 +86,7 @@ class ShortTermMemory:
             if self._embedding_model is None:
                 # 延迟加载模型（首次使用时加载）
                 self._embedding_model = SentenceTransformer(
-                    'paraphrase-MiniLM-L6-v2'  # 轻量级模型，384维
+                    'paraphrase-MiniLM-L6-v2'
                 )
                 logger.info("句子向量模型加载完成")
             
@@ -94,31 +95,28 @@ class ShortTermMemory:
             return embedding.tolist()
             
         except ImportError:
-            logger.warning("sentence-transformers未安装，使用简单哈希向量（不精确）")
-            # 降级方案：使用文本哈希生成伪向量（仅用于测试）
+            # ⚠️ 警告用户：降级方案使用随机哈希，无语义能力
+            logger.error(
+                "⚠️ CRITICAL: sentence-transformers 未安装！"
+                "短期记忆使用 SHA256 哈希降级，无语义相似度能力。"
+                "向量检索结果将是随机的，不可靠。"
+                "请安装: pip install sentence-transformers"
+            )
             return self._get_fallback_embedding(text)
     
     def _get_fallback_embedding(self, text: str) -> List[float]:
         """
-        降级方案：使用文本哈希生成伪向量（仅用于测试）
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            List[float]: 伪向量（384维）
+        降级方案：使用文本哈希生成伪向量
+        ⚠️ 警告：此方案不具备语义相似度能力
         """
-        # 使用SHA-256哈希生成确定性伪向量
         hash_obj = hashlib.sha256(text.encode('utf-8'))
         hash_hex = hash_obj.hexdigest()
         
-        # 将哈希转换为384维向量
         vector = []
         for i in range(384):
-            # 取哈希的不同部分转换为浮点数
             start_idx = (i * 2) % len(hash_hex)
             hex_part = hash_hex[start_idx:start_idx + 2]
-            value = int(hex_part, 16) / 255.0  # 归一化到[0, 1]
+            value = int(hex_part, 16) / 255.0
             vector.append(value)
         
         return vector
@@ -161,11 +159,17 @@ class ShortTermMemory:
                 doc_id = self._generate_doc_id(session_id, timestamp, message.content)
                 embedding = self._get_embedding(message.content)
                 
-                # 准备元数据
+                # 准备元数据（content 字段仅存预览，不存完整内容）
+                # 完整内容存在 documents 字段中，检索时返回完整内容
+                content_preview = message.content[:200]
+                is_truncated = len(message.content) > 200
+                
                 metadata = {
                     "session_id": session_id,
                     "role": message.role,
-                    "content": message.content[:500],  # 只存前500字符（ChromaDB限制）
+                    "content_preview": content_preview,  # 仅预览，避免截断
+                    "content_truncated": is_truncated,
+                    "content_length": len(message.content),  # 记录完整长度
                     "timestamp": timestamp,
                     "date": datetime.now().strftime("%Y-%m-%d"),
                 }
@@ -173,38 +177,62 @@ class ShortTermMemory:
                 if message.name:
                     metadata["name"] = message.name
                 
-                # 添加到ChromaDB
+                # 添加到ChromaDB：documents 存完整内容，metadata 存预览
                 self.collection.add(
                     embeddings=[embedding],
-                    documents=[message.content],
+                    documents=[message.content],  # 完整内容在 documents 中
                     metadatas=[metadata],
                     ids=[doc_id]
                 )
                 
-                logger.debug(f"短期记忆添加消息 | session: {session_id} | role: {message.role}")
+                logger.debug(f"短期记忆添加消息 | session: {session_id} | role: {message.role} | 长度: {len(message.content)}")
                 
-                # 清理过期消息（异步，不阻塞主流程）
-                self._cleanup_old_messages()
+                # 清理过期消息（后台线程，不阻塞主流程）
+                cleanup_thread = threading.Thread(
+                    target=self._cleanup_old_messages,
+                    daemon=True
+                )
+                cleanup_thread.start()
                 
             except Exception as e:
                 logger.error(f"添加消息到短期记忆失败: {e}")
                 raise
     
     def _cleanup_old_messages(self) -> None:
-        """
-        清理超过7天的消息（异步执行）
-        """
+        """清理超过7天的消息（同步版本，保留兼容性）"""
         try:
             cutoff_date = (datetime.now() - timedelta(days=self.DAYS_TO_KEEP)).strftime("%Y-%m-%d")
             
-            # 查询需要删除的消息
             results = self.collection.get(
                 where={"date": {"$lt": cutoff_date}}
             )
             
             if results and results['ids']:
-                # 删除过期消息
                 self.collection.delete(ids=results['ids'])
+                logger.info(f"清理过期短期记忆 | 删除数量: {len(results['ids'])}")
+                
+        except Exception as e:
+            logger.error(f"清理过期消息失败: {e}")
+    
+    async def _cleanup_old_messages_async(self) -> None:
+        """
+        清理超过7天的消息（异步执行，不阻塞主流程）
+        """
+        try:
+            cutoff_date = (datetime.now() - timedelta(days=self.DAYS_TO_KEEP)).strftime("%Y-%m-%d")
+            
+            # 在线程池中执行，避免阻塞
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None,
+                lambda: self.collection.get(where={"date": {"$lt": cutoff_date}})
+            )
+            
+            if results and results['ids']:
+                await loop.run_in_executor(
+                    None,
+                    lambda: self.collection.delete(ids=results['ids'])
+                )
                 logger.info(f"清理过期短期记忆 | 删除数量: {len(results['ids'])}")
                 
         except Exception as e:
@@ -250,7 +278,7 @@ class ShortTermMemory:
                     where=where_clause if where_clause else None
                 )
                 
-                # 解析结果
+                # 解析结果（从 documents 字段获取完整内容）
                 messages = []
                 if results and results['ids']:
                     for i, doc_id in enumerate(results['ids'][0]):
@@ -261,9 +289,16 @@ class ShortTermMemory:
                         similarity = 1 - distance
                         
                         if similarity >= min_similarity:
+                            # 从 documents 字段获取完整内容（避免截断）
+                            full_content = ""
+                            if results.get('documents') and results['documents'][0]:
+                                full_content = results['documents'][0][i] or ""
+                            
                             messages.append({
                                 "id": doc_id,
-                                "content": metadata.get("content", ""),
+                                "content": full_content or metadata.get("content_preview", ""),  # 优先完整内容
+                                "content_preview": metadata.get("content_preview", ""),
+                                "content_truncated": metadata.get("content_truncated", False),
                                 "role": metadata.get("role"),
                                 "timestamp": metadata.get("timestamp"),
                                 "similarity": similarity,

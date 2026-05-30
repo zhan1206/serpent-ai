@@ -324,9 +324,9 @@ class DockerSandbox(ToolSandbox):
         在Docker容器中执行工具
         """
         try:
-    import docker
-except ImportError:
-    docker = None
+            import docker
+        except ImportError:
+            docker = None
         
         # 创建Docker客户端
         client = docker.from_env()

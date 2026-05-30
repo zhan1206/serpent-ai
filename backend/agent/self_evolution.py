@@ -1,12 +1,17 @@
 """
 SerpentAI 自进化系统
 实现技能自动生成、优化、修复和蒸馏
+
+⚠️ 安全设计：所有代码修改默认存储到待审批队列，由管理员确认后才应用。
+仅当 safe_mode=False 时才自动应用修复。
 """
 
 import asyncio
 import logging
 import ast
 import re
+import os
+import shutil
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -24,6 +29,7 @@ class EvolutionResult:
     tool_name: str
     evolution_type: str  # 'fix', 'optimize', 'generate', 'distill'
     fixed: bool = False
+    applied: bool = False  # 是否已实际应用到文件
     suggestion: Optional[str] = None
     fix_description: Optional[str] = None
     code_change: Optional[str] = None
@@ -48,11 +54,25 @@ class SelfEvolution:
         self.evolution_log: List[EvolutionResult] = []
         
         # 进化配置
-        self.auto_fix = True
+        self.auto_fix = False  # 默认关闭，需管理员审批
         self.auto_optimize = False
         self.learn_from_errors = True
         
-        logger.info("自进化系统初始化完成")
+        # 待审批的修复队列
+        self.pending_fixes: List[Dict[str, Any]] = []
+        
+        # 备份目录
+        self.backup_dir = os.path.join(
+            os.path.dirname(__file__), "..", "..", "backups", "evolutions"
+        )
+        os.makedirs(self.backup_dir, exist_ok=True)
+        
+        # 工具代码路径映射
+        self._tool_code_paths: Dict[str, str] = {}
+        self._discover_tool_paths()
+        
+        logger.info("自进化系统初始化完成（安全模式：修复需审批）")
+        logger.warning("⚠️ auto_fix=False，建议通过 pending_fixes 队列审批修复")
     
     def _init_model(self):
         """延迟初始化模型"""
@@ -449,10 +469,50 @@ class SelfEvolution:
             return False
     
     async def _apply_fix(self, tool_name: str, fix: Dict[str, Any]):
-        """应用修复"""
-        # 这里需要实际的代码修改逻辑
-        # 由于修改源代码需要文件操作，暂时记录日志
-        logger.info(f"修复已记录 | 工具: {tool_name} | 描述: {fix.get('description')}")
+        """应用修复
+        
+        安全策略：
+        1. 所有修复先存入 pending_fixes 队列
+        2. auto_fix=True 时自动备份+应用
+        3. auto_fix=False 时仅记录，人工审批后调用 apply_pending_fix()
+        """
+        new_code = fix.get("new_code", "")
+        if not new_code:
+            logger.warning(f"修复代码为空，跳过: {tool_name}")
+            return
+        
+        fix_record = {
+            "tool_name": tool_name,
+            "new_code": new_code,
+            "description": fix.get("description", ""),
+            "timestamp": datetime.now().isoformat(),
+            "applied": False,
+        }
+        
+        if tool_name in self._tool_code_paths:
+            # 备份原文件
+            src_path = self._tool_code_paths[tool_name]
+            backup_name = f"{tool_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py.bak"
+            backup_path = os.path.join(self.backup_dir, backup_name)
+            try:
+                shutil.copy2(src_path, backup_path)
+                fix_record["backup_path"] = backup_path
+                fix_record["source_path"] = src_path
+                logger.info(f"已备份: {backup_path}")
+            except Exception as e:
+                logger.error(f"备份失败: {e}")
+        
+        if self.auto_fix:
+            # 自动应用（危险！仅建议开发环境使用）
+            await self._do_apply_fix(tool_name, new_code)
+            fix_record["applied"] = True
+            fix_record["auto_applied"] = True
+            logger.warning(f"⚠️ 自动应用修复（auto_fix=True）: {tool_name}")
+        else:
+            logger.info(f"修复已加入待审批队列: {tool_name}")
+        
+        # 加入待审批队列
+        self.pending_fixes.append(fix_record)
         
         # 记录到进化日志
         self.evolution_log.append(EvolutionResult(
@@ -460,14 +520,107 @@ class SelfEvolution:
             tool_name=tool_name,
             evolution_type="fix",
             fixed=True,
+            applied=fix_record["applied"],
             fix_description=fix.get("description"),
-            code_change=fix.get("new_code")
+            code_change=new_code,
         ))
     
+    async def _do_apply_fix(self, tool_name: str, new_code: str):
+        """执行实际的代码修复（高风险操作）"""
+        if tool_name not in self._tool_code_paths:
+            logger.error(f"未知工具，无法修复: {tool_name}")
+            return False
+        
+        src_path = self._tool_code_paths[tool_name]
+        try:
+            with open(src_path, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # 替换函数体
+            pattern = rf'(def {re.escape(tool_name)}\([^)]*\):.*?)(?=\n(?:def |class |\Z))'
+            if re.search(pattern, original_content, re.DOTALL):
+                new_content = re.sub(pattern, new_code, original_content, count=1, flags=re.DOTALL)
+            else:
+                logger.error(f"无法定位函数 {tool_name} 在文件中")
+                return False
+            
+            # 写回文件
+            with open(src_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            
+            logger.info(f"✅ 修复已应用: {tool_name} -> {src_path}")
+            return True
+        except Exception as e:
+            logger.error(f"应用修复失败: {e}")
+            return False
+    
+    def apply_pending_fix(self, index: int) -> bool:
+        """手动审批并应用待定的修复"""
+        if index < 0 or index >= len(self.pending_fixes):
+            logger.error(f"无效的修复索引: {index}")
+            return False
+        
+        fix = self.pending_fixes[index]
+        if fix["applied"]:
+            logger.warning(f"修复已应用: {fix['tool_name']}")
+            return False
+        
+        # 同步执行（不能在 async 外直接 await，但这里是同步调用）
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                self._do_apply_fix(fix["tool_name"], fix["new_code"])
+            )
+            if result:
+                fix["applied"] = True
+                fix["approved_at"] = datetime.now().isoformat()
+            return result
+        finally:
+            loop.close()
+    
+    def get_pending_fixes(self) -> List[Dict[str, Any]]:
+        """获取待审批的修复列表"""
+        return [
+            {"index": i, **f}
+            for i, f in enumerate(self.pending_fixes)
+            if not f["applied"]
+        ]
+    
+    def _discover_tool_paths(self):
+        """发现工具代码文件路径"""
+        import backend.tools.builtin_tools as bt_module
+        tools_dir = os.path.dirname(bt_module.__file__)
+        if os.path.isdir(tools_dir):
+            for fname in os.listdir(tools_dir):
+                if fname.endswith('.py') and not fname.startswith('_'):
+                    fpath = os.path.join(tools_dir, fname)
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        # 提取函数名
+                        for match in re.finditer(r'^def (\w+)\(', content, re.MULTILINE):
+                            self._tool_code_paths[match.group(1)] = fpath
+        logger.info(f"已发现 {len(self._tool_code_paths)} 个工具函数")
+
     def _get_tool_code(self, tool_name: str) -> Optional[str]:
-        """获取工具代码"""
-        # 暂时返回 None，需要实现文件读取
-        return None
+        """获取工具源代码"""
+        if tool_name not in self._tool_code_paths:
+            logger.warning(f"工具 '{tool_name}' 代码路径未知")
+            return None
+        
+        try:
+            fpath = self._tool_code_paths[tool_name]
+            with open(fpath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 提取单个函数的代码
+            pattern = rf'(def {re.escape(tool_name)}\([^)]*\):.*?)(?=\n(?:def |class |\Z))'
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                return match.group(1)
+            return None
+        except Exception as e:
+            logger.error(f"读取工具代码失败: {e}")
+            return None
     
     def _get_registry(self):
         """获取工具注册表"""
@@ -527,9 +680,14 @@ class SelfEvolution:
         return text.strip()
     
     async def _apply_optimization(self, tool_name: str, optimization: Dict) -> str:
-        """应用优化"""
-        logger.info(f"优化已记录 | 工具: {tool_name}")
-        return optimization.get("code", "")
+        """应用优化代码"""
+        optimized_code = optimization.get("code", "")
+        if optimized_code and self.auto_optimize:
+            await self._do_apply_fix(tool_name, optimized_code)
+            logger.info(f"✅ 优化已应用: {tool_name}")
+        else:
+            logger.info(f"优化已记录（待审批）: {tool_name}")
+        return optimized_code
     
     async def _register_generated_tool(self, generated: Dict, category: str):
         """注册生成的工具"""
@@ -546,8 +704,28 @@ class SelfEvolution:
             logger.error(f"工具注册失败: {e}")
     
     def _apply_distillation(self, tool_name: str, distilled: Dict):
-        """应用蒸馏结果"""
-        logger.info(f"蒸馏已应用 | 工具: {tool_name}")
+        """应用蒸馏结果到工具注册表"""
+        try:
+            registry = self._get_registry()
+            # 更新工具描述（需要 registry 支持 update_tool）
+            new_description = distilled.get("description", "")
+            if new_description and hasattr(registry, 'update_tool_description'):
+                registry.update_tool_description(tool_name, new_description)
+                logger.info(f"✅ 蒸馏描述已更新: {tool_name}")
+            elif new_description:
+                # 如果注册表不支持 update，存入进化日志供参考
+                logger.info(f"蒸馏结果已记录（注册表不支持动态更新）: {tool_name}")
+                self.evolution_log.append(EvolutionResult(
+                    success=True,
+                    tool_name=tool_name,
+                    evolution_type="distill",
+                    fixed=True,
+                    applied=False,
+                    suggestion="蒸馏结果已记录，需手动更新",
+                    improvement=distilled.get("improvement", 0.0)
+                ))
+        except Exception as e:
+            logger.error(f"蒸馏应用失败: {e}")
     
     def get_evolution_history(self, limit: int = 20) -> List[EvolutionResult]:
         """获取进化历史"""
