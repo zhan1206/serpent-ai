@@ -1,4 +1,7 @@
-"""Output Compressor - 输出压缩器"""
+"""Output Compressor - 输出压缩器
+
+模型输出的冗余空白压缩和格式化。
+"""
 
 import json
 import re
@@ -8,8 +11,8 @@ from typing import Dict
 class OutputCompressor:
     """
     输出压缩器
-    模型输出的智能压缩和格式化
-    预期效果：输出Token消耗降低40%
+    
+    当前实现：移除多余空白（空格、换行归一化）。
     """
     
     def __init__(self):
@@ -21,7 +24,7 @@ class OutputCompressor:
     
     def compress(self, output: str) -> str:
         """
-        压缩模型输出
+        压缩模型输出（移除多余空白）
         
         Args:
             output: 原始输出
@@ -31,10 +34,8 @@ class OutputCompressor:
         """
         self.compression_stats["total_compressions"] += 1
         
-        # 移除多余空白
         compressed = re.sub(r'\s+', ' ', output).strip()
         
-        # 计算节省
         savings = len(output) - len(compressed)
         self.compression_stats["total_savings"] += savings
         
@@ -52,16 +53,13 @@ class OutputCompressor:
             格式化后的输出
         """
         if format_type == "json":
-            # 尝试解析为JSON
             try:
                 data = json.loads(output)
                 return json.dumps(data, ensure_ascii=False, indent=2)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 return output
         
         elif format_type == "markdown":
-            # 简化Markdown（移除多余的格式标记）
-            # 移除多个连续的空行
             output = re.sub(r'\n{3,}', '\n\n', output)
             return output
         

@@ -274,10 +274,16 @@ class ReasoningEngine:
         
         return "\n".join(lines)
     
-    def _get_recent_messages(self, context: str) -> str:
-        """获取最近的对话历史"""
+    def _get_recent_messages(self, context: str, max_chars: int = 2000) -> str:
+        """获取最近的对话历史（限制长度防止溢出）"""
         if "最近消息" in context:
-            return context.split("最近消息")[-1].split("【")[0]
+            remaining = context.split("最近消息")[-1]
+            # 截取到下一个【标记或达到最大长度
+            if "【" in remaining:
+                result = remaining.split("【")[0]
+            else:
+                result = remaining[:max_chars]
+            return result[:max_chars]
         return "无历史消息"
     
     def _parse_reasoning_response(self, response: str, step: int) -> ReasoningResult:

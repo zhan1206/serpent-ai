@@ -1,7 +1,9 @@
 """
 Efficiency Engine - 效率引擎
 全局Token消耗监控和优化调度
-这是SerpentAI的核心差异化优势：Token消耗持续降低85%
+
+包含6个模块：TokenOptimizer、PromptDistiller、IncrementalContextManager、
+SemanticCompressor、OutputCompressor、MultiLevelCache
 """
 
 from .token_optimizer import TokenOptimizer

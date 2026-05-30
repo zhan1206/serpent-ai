@@ -1,4 +1,7 @@
-"""Multi-Level Cache - 多级缓存系统"""
+"""Multi-Level Cache - 多级缓存系统
+
+基于内存的 LRU 缓存，支持4种缓存类型。
+"""
 
 from typing import Any, Dict, Optional
 
@@ -6,23 +9,28 @@ from typing import Any, Dict, Optional
 class MultiLevelCache:
     """
     多级缓存系统
-    提示词缓存、工具缓存、记忆缓存、模型响应缓存
+    
+    支持 prompt/tool/memory/model_response 四种缓存类型。
+    使用显式 dict 映射，避免 getattr/setattr 动态属性名。
     """
+    
+    # 允许的缓存类型
+    VALID_TYPES = {"prompt", "tool", "memory", "model_response"}
     
     def __init__(self):
         """初始化多级缓存"""
-        # LRU缓存
-        self.prompt_cache: Dict[str, Any] = {}
-        self.tool_cache: Dict[str, Any] = {}
-        self.memory_cache: Dict[str, Any] = {}
-        self.model_response_cache: Dict[str, Any] = {}
+        self._caches: Dict[str, Dict[str, Any]] = {
+            "prompt": {},
+            "tool": {},
+            "memory": {},
+            "model_response": {},
+        }
         
-        # 缓存配置
         self.max_sizes = {
-            "prompt": 100,      # 最多100个提示词缓存
-            "tool": 50,        # 最多50个工具缓存
-            "memory": 1000,   # 最多1000条记忆缓存
-            "model_response": 200  # 最多200个模型响应缓存
+            "prompt": 100,
+            "tool": 50,
+            "memory": 1000,
+            "model_response": 200
         }
         
         self.hits = 0
@@ -39,7 +47,11 @@ class MultiLevelCache:
         Returns:
             缓存的值，如果没有则返回None
         """
-        cache = getattr(self, f"{cache_type}_cache", {})
+        if cache_type not in self.VALID_TYPES:
+            self.misses += 1
+            return None
+        
+        cache = self._caches[cache_type]
         
         if key in cache:
             self.hits += 1
@@ -59,32 +71,24 @@ class MultiLevelCache:
             key: 缓存键
             value: 缓存值
         """
-        cache = getattr(self, f"{cache_type}_cache", {})
+        if cache_type not in self.VALID_TYPES:
+            return
         
-        # 添加到缓存
+        cache = self._caches[cache_type]
         cache[key] = value
         
-        # 检查大小并移除最旧的
         max_size = self.max_sizes.get(cache_type, 100)
         while len(cache) > max_size:
-            # 移除第一个（最旧的）
             cache.popitem(last=False)
     
     def clear(self, cache_type: Optional[str] = None):
-        """
-        清空缓存
-        
-        Args:
-            cache_type: 缓存类型，不提供则清空所有
-        """
+        """清空缓存"""
         if cache_type:
-            cache = getattr(self, f"{cache_type}_cache", {})
-            cache.clear()
+            if cache_type in self._caches:
+                self._caches[cache_type].clear()
         else:
-            self.prompt_cache.clear()
-            self.tool_cache.clear()
-            self.memory_cache.clear()
-            self.model_response_cache.clear()
+            for cache in self._caches.values():
+                cache.clear()
     
     def get_stats(self) -> Dict:
         """获取缓存统计"""
@@ -92,10 +96,10 @@ class MultiLevelCache:
         hit_rate = self.hits / max(1, total) * 100
         
         return {
-            "prompt_cache_size": len(self.prompt_cache),
-            "tool_cache_size": len(self.tool_cache),
-            "memory_cache_size": len(self.memory_cache),
-            "model_response_cache_size": len(self.model_response_cache),
+            "prompt_cache_size": len(self._caches["prompt"]),
+            "tool_cache_size": len(self._caches["tool"]),
+            "memory_cache_size": len(self._caches["memory"]),
+            "model_response_cache_size": len(self._caches["model_response"]),
             "hits": self.hits,
             "misses": self.misses,
             "hit_rate_percent": hit_rate
