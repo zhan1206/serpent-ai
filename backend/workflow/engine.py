@@ -6,12 +6,90 @@ SerpentAI 工作流引擎 - 核心工作流系统
 import uuid
 import json
 import logging
+import ast
+import operator
+import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+# --- Safe Expression Evaluator (replaces unsafe eval/exec) ----------------
+_MATH_OPS = {
+    ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+    ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
+    ast.Pow: operator.pow, ast.BitAnd: operator.and_, ast.BitOr: operator.or_,
+    ast.BitXor: operator.xor, ast.Invert: operator.invert,
+    ast.LShift: operator.lshift, ast.RShift: operator.rshift,
+    ast.Lt: operator.lt, ast.Gt: operator.gt, ast.LtE: operator.le,
+    ast.GtE: operator.ge, ast.Eq: operator.eq, ast.NotEq: operator.ne,
+    ast.USub: operator.neg, ast.UAdd: operator.pos,
+}
+_BOOL_OPS = {
+    ast.Not: operator.not_, ast.And: operator.and_, ast.Or: operator.or_,
+    ast.In: lambda a, b: a in b, ast.NotIn: lambda a, b: a not in b,
+    ast.Is: lambda a, b: a is b, ast.IsNot: lambda a, b: a is not b
+}
+_CONSTANTS = {"True": True, "False": False, "None": None}
+_ALLOWED_FUNCTIONS = {
+    "abs": abs, "round": round, "min": min, "max": max,
+    "len": len, "sum": sum, "pow": pow,
+    "floor": math.floor, "ceil": math.ceil, "sqrt": math.sqrt,
+}
+
+
+def _safe_eval(node, ctx):
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name):
+        name = node.id
+        if name in _CONSTANTS:
+            return _CONSTANTS[name]
+        if name in ctx:
+            return ctx[name]
+        raise NameError(f"Variable '{name}' is not defined")
+    if isinstance(node, ast.UnaryOp):
+        op_type = type(node.op)
+        op_fn = _MATH_OPS.get(op_type) or _BOOL_OPS.get(op_type)
+        if op_fn:
+            return op_fn(_safe_eval(node.operand, ctx))
+    if isinstance(node, ast.BinOp):
+        op_fn = _MATH_OPS.get(type(node.op))
+        if op_fn:
+            return op_fn(_safe_eval(node.left, ctx), _safe_eval(node.right, ctx))
+    if isinstance(node, ast.Compare):
+        left = _safe_eval(node.left, ctx)
+        for op_node, right_node in zip(node.ops, node.comparators):
+            op_fn = _BOOL_OPS.get(type(op_node)) or _MATH_OPS.get(type(op_node))
+            if not op_fn(left, _safe_eval(right_node, ctx)):
+                return False
+            left = _safe_eval(right_node, ctx)
+        return True
+    if isinstance(node, ast.BoolOp):
+        fn = _BOOL_OPS[type(node.op)]
+        return fn(_safe_eval(node.values[0], ctx), _safe_eval(node.values[1], ctx))
+    if isinstance(node, ast.IfExp):
+        return _safe_eval(node.body, ctx) if _safe_eval(node.test, ctx) else _safe_eval(node.orelse, ctx)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        fname = node.func.id
+        if fname in _ALLOWED_FUNCTIONS:
+            args = [_safe_eval(a, ctx) for a in node.args]
+            return _ALLOWED_FUNCTIONS[fname](*args)
+        raise NameError(f"Function '{fname}' is not allowed")
+    if isinstance(node, ast.Attribute):
+        raise ValueError("Attribute access is not allowed")
+    raise ValueError(f"Unsupported node: {type(node).__name__}")
+
+
+def _eval_expr(expression, ctx):
+    try:
+        tree = ast.parse(expression.strip(), mode='eval')
+        return _safe_eval(tree.body, ctx)
+    except Exception as e:
+        raise ValueError(f"Expression evaluation failed: {e}")
 
 
 class NodeType(Enum):
@@ -792,10 +870,10 @@ class WorkflowEngine:
         for key, value in context.items():
             expression = expression.replace(f"{{{key}}}", str(value))
         try:
-            result = eval(expression)
+            result = _eval_expr(expression, context)
             return {"result": result}
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": "[security] math eval failed: " + str(e)}
     
     # TRANSFORM节点
     async def _handle_transform(
@@ -887,12 +965,12 @@ class WorkflowEngine:
         expression = node.config.condition_expression
         for key, value in context.items():
             expression = expression.replace(f"{{{key}}}", str(value))
-        
+
         try:
-            result = eval(expression)
+            result = _eval_expr(expression, context)
             return {"condition_met": bool(result)}
         except Exception as e:
-            return {"error": str(e), "condition_met": False}
+            return {"error": "[security] condition eval failed: " + str(e), "condition_met": False}
     
     # LOOP节点
     async def _handle_loop(
@@ -928,19 +1006,13 @@ class WorkflowEngine:
         node: WorkflowNode,
         context: Dict
     ) -> Dict:
-        code = node.config.code_content
-        language = node.config.code_language
-        
-        # 简单的代码执行（实际生产中应该用沙箱）
-        if language == "python":
-            try:
-                local_vars = {**context}
-                exec(code, {"__builtins__": __builtins__}, local_vars)
-                return {"executed": True, "result": local_vars.get("result")}
-            except Exception as e:
-                return {"error": str(e)}
-        else:
-            return {"error": f"不支持的语言: {language}"}
+        # CODE 节点已被禁用 — 任意 exec() 是严重安全风险
+        # 如需代码执行，请使用 'tool' 节点调用已注册的沙箱工具
+        return {
+            "error": "[security] CODE node is disabled to prevent arbitrary code execution. "
+                     "Use a 'tool' node to invoke sandboxed tools instead.",
+            "disabled": True
+        }
     
     # ==================== 导入/导出 ====================
     
