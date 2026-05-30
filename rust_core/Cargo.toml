@@ -1,0 +1,47 @@
+[package]
+name = "serpent-ai-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["SerpentAI Team"]
+description = "High-performance core modules for SerpentAI"
+license = "MIT"
+
+[lib]
+name = "serpent_ai_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py38"] }
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rayon = "1.8"
+parking_lot = "0.12"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+lz4 = "1.24"
+zstd = "0.13"
+
+# Crypto
+aes-gcm = "0.10"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+rand = "0.8"
+zeroize = "1.7"
+
+[dev-dependencies]
+criterion = "0.5"
+proptest = "1.4"
+
+[[bench]]
+name = "token_optimizer_bench"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true

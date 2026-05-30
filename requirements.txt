@@ -19,3 +19,7 @@ python-dotenv>=1.0
 pyyaml>=6.0
 pyotp>=2.9
 tiktoken>=0.7
+
+# Distributed task queue
+celery>=5.3
+flower>=2.0  # Celery monitoring

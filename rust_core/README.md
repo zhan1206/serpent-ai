@@ -108,9 +108,10 @@ result = sandbox.run("python", "print('hello')")
 
 ## 待实现
 
-- [ ] tool_sandbox模块开发
-- [ ] token_optimizer模块开发
-- [ ] crypto_module模块开发
-- [ ] memory_index模块开发
-- [ ] PyO3 Python绑定
+- [x] tool_sandbox模块开发 (基础实现)
+- [x] token_optimizer模块开发 (基础实现)
+- [x] crypto_module模块开发 (基础实现)
+- [x] memory_index模块开发 (基础实现)
+- [ ] PyO3 Python绑定测试
 - [ ] 性能测试和优化
+- [ ] WebAssembly构建支持
