@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import os
 import json
-import resource
+import os  # resource module is Unix-only, use os as fallback
 import signal
 from typing import Dict, Any, Optional
 from .tool_executor import ToolExecutionError
@@ -92,17 +92,21 @@ class ToolSandbox:
                     "Use 'docker' or 'gvisor' sandbox for MCP tools."
                 )
             
-            # 设置资源限制
+            # 设置资源限制（Unix-only）
             def set_limits():
-                # 限制内存
-                memory_bytes = self.max_memory_mb * 1024 * 1024
-                resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-                
-                # 限制CPU时间
-                resource.setrlimit(resource.RLIMIT_CPU, (self.max_cpu_time, self.max_cpu_time + 1))
-                
-                # 限制文件大小
-                resource.setrlimit(resource.RLIMIT_FSIZE, (100 * 1024 * 1024, 100 * 1024 * 1024))  # 100MB
+                try:
+                    import resource as _resource
+                    # 限制内存
+                    memory_bytes = self.max_memory_mb * 1024 * 1024
+                    _resource.setrlimit(_resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+                    
+                    # 限制CPU时间
+                    _resource.setrlimit(_resource.RLIMIT_CPU, (self.max_cpu_time, self.max_cpu_time + 1))
+                    
+                    # 限制文件大小
+                    _resource.setrlimit(_resource.RLIMIT_FSIZE, (100 * 1024 * 1024, 100 * 1024 * 1024))  # 100MB
+                except (ImportError, AttributeError):
+                    pass  # Windows/non-Unix: skip resource limits
             
             try:
                 # 执行命令
@@ -319,7 +323,10 @@ class DockerSandbox(ToolSandbox):
         """
         在Docker容器中执行工具
         """
-        import docker
+        try:
+    import docker
+except ImportError:
+    docker = None
         
         # 创建Docker客户端
         client = docker.from_env()

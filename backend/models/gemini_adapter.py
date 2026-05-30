@@ -47,7 +47,10 @@ class GeminiAdapter(BaseModelAdapter):
             except ImportError:
                 logger.warning("google-generativeai未安装，尝试OpenAI兼容接口")
                 try:
-                    import openai
+                    try:
+    import openai
+except ImportError:
+    openai = None
                     base_url = self.config.get("base_url") or os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
                     self._openai_client = openai.OpenAI(api_key=api_key, base_url=base_url)
                     self._model = None  # 使用OpenAI兼容路径

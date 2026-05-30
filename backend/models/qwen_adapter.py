@@ -42,7 +42,10 @@ class QwenAdapter(BaseModelAdapter):
                 logger.warning("DashScope API密钥未配置")
                 return False
             try:
-                import openai
+                try:
+    import openai
+except ImportError:
+    openai = None
                 self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
             except ImportError:
                 logger.error("需要openai库来调用Qwen API")

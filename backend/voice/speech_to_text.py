@@ -9,7 +9,10 @@ import base64
 from typing import Optional, Union, AsyncGenerator
 from enum import Enum
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    np = None
 from pydantic import BaseModel, Field
 import aiohttp
 import httpx

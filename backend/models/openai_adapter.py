@@ -2,7 +2,10 @@
 SerpentAI 模型抽象层 - OpenAI适配器
 支持所有OpenAI API兼容的模型（GPT-4o, GPT-3.5-turbo等）
 """
-import openai
+try:
+    import openai
+except ImportError:
+    openai = None
 from typing import List, Dict, Any, Optional, Generator
 import logging
 import time

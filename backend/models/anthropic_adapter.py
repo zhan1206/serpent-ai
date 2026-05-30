@@ -3,7 +3,10 @@ SerpentAI 模型抽象层 - Anthropic适配器
 支持所有Anthropic Claude模型（Claude 3 系列等）
 """
 import json
-import anthropic
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
 from typing import List, Dict, Any, Optional, Generator
 import logging
 import time
