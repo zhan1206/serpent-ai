@@ -106,19 +106,18 @@ class ShortTermMemory:
     
     def _get_fallback_embedding(self, text: str) -> List[float]:
         """
-        降级方案：使用文本哈希生成伪向量
-        ⚠️ 警告：此方案不具备语义相似度能力
+        Fallback: generate pseudo-vector from text hash.
+        WARNING: This method has NO semantic similarity capability.
+        Search results will be essentially random when this is used.
+        For semantic search, ensure sentence-transformers is installed.
         """
-        hash_obj = hashlib.sha256(text.encode('utf-8'))
-        hash_hex = hash_obj.hexdigest()
-        
+        logger.warning("Using SHA256 pseudo-vector fallback -- semantic search disabled")
+        hash_hex = hashlib.sha256(text.encode("utf-8")).hexdigest()
         vector = []
         for i in range(384):
             start_idx = (i * 2) % len(hash_hex)
             hex_part = hash_hex[start_idx:start_idx + 2]
-            value = int(hex_part, 16) / 255.0
-            vector.append(value)
-        
+            vector.append(int(hex_part, 16) / 255.0)
         return vector
     
     def _generate_doc_id(self, session_id: str, timestamp: str, content: str) -> str:
@@ -133,7 +132,7 @@ class ShortTermMemory:
         Returns:
             str: 唯一ID
         """
-        content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()[:8]
+        content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
         return f"{session_id}_{timestamp}_{content_hash}"
     
     def _is_available(self) -> bool:
@@ -337,15 +336,17 @@ class ShortTermMemory:
                     where={"session_id": session_id},
                     limit=limit
                 )
-                
-                # 解析结果并排序
+
                 messages = []
-                if results and results['ids']:
+                if results and results.get('ids'):
+                    docs = results.get('documents', [])
                     for i, doc_id in enumerate(results['ids']):
                         metadata = results['metadatas'][i]
+                        full_content = docs[i] if i < len(docs) else ""
                         messages.append({
                             "id": doc_id,
-                            "content": metadata.get("content", ""),
+                            "content": full_content or metadata.get("content_preview", ""),
+                            "content_preview": metadata.get("content_preview", ""),
                             "role": metadata.get("role"),
                             "timestamp": metadata.get("timestamp"),
                         })

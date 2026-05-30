@@ -526,32 +526,57 @@ class SelfEvolution:
         ))
     
     async def _do_apply_fix(self, tool_name: str, new_code: str):
-        """执行实际的代码修复（高风险操作）"""
+        """Execute actual code fix (high-risk operation)
+
+        Security constraints:
+        1. Only files under backend/ directory allowed
+        2. AST syntax validation before writing
+        3. Backup before writing
+        4. Full file replacement
+        """
         if tool_name not in self._tool_code_paths:
-            logger.error(f"未知工具，无法修复: {tool_name}")
+            logger.error(f"Unknown tool, cannot fix: {tool_name}")
             return False
-        
+
         src_path = self._tool_code_paths[tool_name]
+        abs_src = os.path.abspath(src_path)
+        backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if not abs_src.startswith(backend_root + os.sep):
+            logger.error(f"[SECURITY] Rejected: path outside backend/: {src_path}")
+            return False
+
         try:
-            with open(src_path, 'r', encoding='utf-8') as f:
-                original_content = f.read()
-            
-            # 替换函数体
-            pattern = rf'(def {re.escape(tool_name)}\([^)]*\):.*?)(?=\n(?:def |class |\Z))'
-            if re.search(pattern, original_content, re.DOTALL):
-                new_content = re.sub(pattern, new_code, original_content, count=1, flags=re.DOTALL)
-            else:
-                logger.error(f"无法定位函数 {tool_name} 在文件中")
+            # 1. AST validation
+            try:
+                ast.parse(new_code)
+            except SyntaxError as e:
+                logger.error(f"[SECURITY] AST validation failed, rejected: {tool_name} -- {e}")
                 return False
-            
-            # 写回文件
-            with open(src_path, 'w', encoding='utf-8') as f:
-                f.write(new_content)
-            
-            logger.info(f"✅ 修复已应用: {tool_name} -> {src_path}")
+
+            # 2. Dangerous pattern detection
+            for pat in ["__import__", "exec(", "eval(", "open(", "compile(",
+                        "os.system", "subprocess.call", "importlib"]:
+                if pat in new_code:
+                    logger.error(f"[SECURITY] Dangerous pattern detected ({pat}), rejected: {tool_name}")
+                    return False
+
+            with open(src_path, "r", encoding="utf-8") as f:
+                original_content = f.read()
+            # 3. Backup
+            backup_name = f"{os.path.basename(src_path)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py.bak"
+            backup_path = os.path.join(self.backup_dir, backup_name)
+            with open(backup_path, "w", encoding="utf-8") as f:
+                f.write(original_content)
+            logger.info(f"Backed up: {backup_path}")
+
+            # 4. Write new file (full replacement)
+            with open(src_path, "w", encoding="utf-8") as f:
+                f.write(new_code)
+
+            logger.info(f"Fix applied: {tool_name} -> {src_path}")
             return True
         except Exception as e:
-            logger.error(f"应用修复失败: {e}")
+            logger.error(f"Failed to apply fix: {e}")
             return False
     
     def apply_pending_fix(self, index: int) -> bool:
