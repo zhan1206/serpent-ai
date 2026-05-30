@@ -217,9 +217,16 @@ class SerpentAgent:
             return False
         
         # 检查是否成功完成任务
+        # success=True + tool_name="response" → Agent 已返回最终响应，停止推理
         if observation.get("success") and observation.get("tool_name") == "response":
             return False
-        
+        # 工具调用失败 → 让 Agent 感知失败并做决策，不静默吞掉
+        if observation.get("tool_name") and observation.get("tool_name") != "response":
+            if not observation.get("success"):
+                logger.warning(f"工具调用失败 | tool={observation.get('tool_name')} | "
+                               f"error={observation.get('error', 'unknown')}")
+                return False  # 让 Agent 重试或选择其他工具
+
         # 检查是否有未完成的任务
         pending_tasks = [t for t in context.tasks if t.status == TaskStatus.PENDING]
         if not pending_tasks:

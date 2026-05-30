@@ -51,7 +51,17 @@ except ImportError:
             self._cache: Dict[int, str] = {}
 
         def count_tokens(self, text: str) -> int:
-            return len(text.split())
+            """Count tokens using tiktoken (accurate) or approximation formula."""
+            try:
+                import tiktoken
+                enc = tiktoken.get_encoding("cl100k_base")
+                return len(enc.encode(text))
+            except Exception:
+                # Fallback: approximation formula
+                # Chinese: ~1.5-2 chars per token; English: ~4 chars per token
+                chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+                other_chars = len(text) - chinese_chars
+                return int(chinese_chars * 0.5 + other_chars * 0.25)
 
         def count_tokens_batch(self, texts: List[str]) -> List[int]:
             return [self.count_tokens(t) for t in texts]
@@ -291,7 +301,15 @@ except ImportError:
                 self._entries = json.load(f)
 
     def count_tokens_fast(text: str) -> int:
-        return len(text.split())
+        """Fast token count with Chinese-aware approximation."""
+        try:
+            import tiktoken
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(text))
+        except Exception:
+            chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+            other_chars = len(text) - chinese_chars
+            return int(chinese_chars * 0.5 + other_chars * 0.25)
 
     def hash_text(text: str) -> int:
         return hash(text)

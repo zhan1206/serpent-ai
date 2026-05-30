@@ -2,6 +2,7 @@
 SerpentAI 记忆系统 - 记忆管理器
 统一管理四层记忆（瞬时、短期、长期、归档）
 """
+import hashlib
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -249,7 +250,7 @@ class MemoryManager:
         unique_results = []
         
         for result in results:
-            content_key = result["content"][:100]  # 取前100字符作为去重键
+            content_key = hashlib.sha256(result['content'].encode()).hexdigest()  # 取前100字符作为去重键
             if content_key not in seen:
                 seen.add(content_key)
                 unique_results.append(result)
@@ -325,7 +326,7 @@ class MemoryManager:
         
         for msg in messages:
             # 估算Token数（简单方法：1个Token ≈ 1.3个字符）
-            msg_tokens = len(msg["content"]) // 1
+            msg_tokens = (lambda c: int(sum(1 for x in c if '\u4e00' <= x <= '\u9fff') * 0.5 + (len(c) - sum(1 for x in c if '\u4e00' <= x <= '\u9fff')) * 0.25))(msg['content'])
             
             # 如果超过预算，停止添加
             if estimated_tokens + msg_tokens > max_tokens:
