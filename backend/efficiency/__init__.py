@@ -4,6 +4,10 @@ Efficiency Engine - 效率引擎
 
 包含6个模块：TokenOptimizer、PromptDistiller、IncrementalContextManager、
 SemanticCompressor、OutputCompressor、MultiLevelCache
+
+加速策略：当 Rust 核心模块 (serpent_ai_core) 编译安装后，
+TokenOptimizer 自动使用 xxHash/LZ4/Rayon 加速路径，
+否则使用纯 Python 实现（功能一致）。
 """
 
 from .token_optimizer import TokenOptimizer
