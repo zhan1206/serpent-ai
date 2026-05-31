@@ -18,6 +18,7 @@ from .self_evolution import SelfEvolution, EvolutionResult
 
 from backend.models.base_model import Message, create_adapter
 from backend.memory import get_memory_manager
+from backend.efficiency.token_optimizer import get_token_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ class SerpentAgent:
         self.tool_coordinator = ToolCoordinator()
         self.self_evolution = SelfEvolution()
         self.memory_manager = get_memory_manager()
+        self.token_optimizer = get_token_optimizer()
         
         # 会话上下文缓存
         self.contexts: Dict[str, ConversationContext] = {}
@@ -256,6 +258,17 @@ class SerpentAgent:
         
         # 保存到记忆系统
         self.memory_manager.add_message(session_id, Message(role="user", content=user_message))
+
+        # 使用 TokenOptimizer 压缩上下文（减少 API token 消耗）
+        try:
+            context_text = "\n".join(m.content for m in context.messages if hasattr(m, 'content') and m.content)
+            if len(context_text) > 4000:
+                opt_result = self.token_optimizer.compress_prompt(context_text, max_tokens=8000)
+                if opt_result.savings > 0:
+                    logger.info(f"Token优化: 节省 {opt_result.savings} tokens ({opt_result.method})")
+                    self.token_optimizer.record_savings("prompt_distillation_savings", opt_result.savings)
+        except Exception as e:
+            logger.debug(f"Token优化跳过: {e}")
         
         logger.info(f"智能体开始处理 | session: {session_id} | 消息长度: {len(user_message)}")
         

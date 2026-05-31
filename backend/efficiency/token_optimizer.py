@@ -23,32 +23,10 @@ logger = logging.getLogger(__name__)
 
 # 尝试导入 Rust 加速
 try:
-    from backend.core.rust_bridge import (
-        rust_available, get_rust_token_optimizer,
-        hash_text_fast, count_tokens_fast,
-        compress_lz4, decompress_lz4
-    )
+    from backend.core.rust_bridge import rust_available
     _RUST_AVAILABLE = rust_available()
 except ImportError:
     _RUST_AVAILABLE = False
-
-    def rust_available():
-        return False
-
-    def get_rust_token_optimizer():
-        return None
-
-    def hash_text_fast(text: str):
-        return None
-
-    def count_tokens_fast(text: str):
-        return None
-
-    def compress_lz4(text: str):
-        return None
-
-    def decompress_lz4(data: bytes):
-        return None
 
 
 @dataclass
@@ -106,7 +84,13 @@ class TokenOptimizer:
         self._cache_misses = 0
         
         # Rust 加速器（可选）
-        self._rust_optimizer = get_rust_token_optimizer() if _RUST_AVAILABLE else None
+        self._rust_optimizer = None
+        if _RUST_AVAILABLE:
+            try:
+                from backend.core.rust_bridge import get_rust_token_optimizer
+                self._rust_optimizer = get_rust_token_optimizer()
+            except Exception as e:
+                logger.warning(f"Rust TokenOptimizer init failed: {e}")
         if self._rust_optimizer:
             logger.info("TokenOptimizer: using Rust acceleration (xxHash + LZ4)")
         else:
@@ -225,28 +209,22 @@ class TokenOptimizer:
         )
     
     def compress_data(self, data: str) -> Optional[bytes]:
-        """
-        使用 LZ4 压缩数据（需 Rust 核心模块）
-        
-        Args:
-            data: 待压缩文本
-            
-        Returns:
-            压缩后的字节，或 None（Rust 不可用）
-        """
-        return compress_lz4(data)
-    
+        """使用 LZ4 压缩数据（需 Rust 核心模块）"""
+        if not self._rust_optimizer:
+            return None
+        try:
+            return self._rust_optimizer.compress(data)
+        except Exception:
+            return None
+
     def decompress_data(self, compressed: bytes) -> Optional[str]:
-        """
-        使用 LZ4 解压数据（需 Rust 核心模块）
-        
-        Args:
-            compressed: LZ4 压缩的字节
-            
-        Returns:
-            解压后的文本，或 None（Rust 不可用或解压失败）
-        """
-        return decompress_lz4(compressed)
+        """使用 LZ4 解压数据（需 Rust 核心模块）"""
+        if not self._rust_optimizer:
+            return None
+        try:
+            return self._rust_optimizer.decompress(compressed)
+        except Exception:
+            return None
     
     def _smart_truncate(self, text: str, max_tokens: int) -> str:
         """智能截断文本，保留关键信息"""

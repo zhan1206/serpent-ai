@@ -20,6 +20,11 @@ pyyaml>=6.0
 pyotp>=2.9
 tiktoken>=0.7
 
+# Optional dependencies (not installed by default, graceful degradation when missing)
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+neo4j>=5.0.0
+
 # Distributed task queue
 celery>=5.3
 flower>=2.0  # Celery monitoring

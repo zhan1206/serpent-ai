@@ -287,8 +287,11 @@ class ReasoningEngine:
         return "无历史消息"
     
     def _parse_reasoning_response(self, response: str, step: int) -> ReasoningResult:
-        """解析推理响应（回退方案）"""
-        # 保留原有字符串解析逻辑作为回退
+        """解析推理响应（最终回退方案）
+        
+        当结构化 JSON 解析失败时，使用正则匹配多种格式标记。
+        支持中英文混合，不依赖固定字符串。
+        """
         result = ReasoningResult(
             thought="",
             action_type="RESPONSE",
@@ -298,47 +301,58 @@ class ReasoningEngine:
         
         lines = response.split("\n")
         
-        # 提取思考过程
+        # 提取思考过程（支持中英文标记）
+        thought_patterns = [
+            re.compile(r'\*{0,2}(?:思考过程|思考)\*{0,2}\s*[:：]'),
+            re.compile(r'\*{0,2}(?:thought|reasoning)\*{0,2}\s*[:：]', re.IGNORECASE),
+            re.compile(r'(?:思考过程|思考|thought|reasoning)\s*[:：]', re.IGNORECASE),
+        ]
         thought_start = -1
         for i, line in enumerate(lines):
-            if "**思考过程**:" in line or "**思考**:" in line:
+            if any(p.search(line) for p in thought_patterns):
                 thought_start = i
-            elif thought_start >= 0 and line.startswith("**"):
+            elif thought_start >= 0 and (line.startswith("**") or line.startswith("#")):
                 break
-            elif thought_start >= 0:
+            elif thought_start >= 0 and line.strip():
                 result.thought += line + "\n"
         
-        # 提取行动类型
+        # 提取行动类型（支持中英文和多种格式）
+        action_patterns = [
+            re.compile(r'\*{0,2}(?:行动选择|action)\*{0,2}\s*[:：]', re.IGNORECASE),
+        ]
         for line in lines:
-            if "**行动选择**:" in line or "行动选择" in line:
-                if "TOOL" in line.upper():
-                    result.action_type = "tool"
-                elif "TASK" in line.upper():
-                    result.action_type = "task"
-                else:
-                    result.action_type = "response"
+            if any(p.search(line) for p in action_patterns):
+                # 匹配行动类型：支持 TOOL/RESPONSE/TASK 以及中文
+                action_match = re.search(r'\b(TOOL|RESPONSE|TASK|tool|response|task)\b', line, re.IGNORECASE)
+                if action_match:
+                    result.action_type = action_match.group(1).lower()
                 break
         
-        # 提取置信度
-        for line in lines:
-            if "**置信度**:" in line or "置信度" in line:
-                try:
-                    import re
-                    numbers = re.findall(r'0\.\d+|1\.0', line)
-                    if numbers:
-                        result.confidence = float(numbers[0])
-                except:
-                    pass
+        # 提取置信度（允许星号标记）
+        confidence_match = re.search(
+            r'(?:\*{0,2}(?:置信度|confidence)\*{0,2})\s*[:：]\s*([0-9.]+)', 
+            response, re.IGNORECASE
+        )
+        if not confidence_match:
+            # 回退：在任何包含置信度关键词的行中找数字
+            for line in lines:
+                if re.search(r'置信度|confidence', line, re.IGNORECASE):
+                    confidence_match = re.search(r'([0-9]+\.?[0-9]*)', line)
+                    if confidence_match:
+                        break
+        if confidence_match:
+            try:
+                result.confidence = min(1.0, max(0.0, float(confidence_match.group(1))))
+            except ValueError:
+                pass
         
         # 提取工具信息
         if result.action_type == "tool":
             result.tool_name, result.arguments = self._extract_tool_info(lines)
-        
-        # 提取响应内容
         elif result.action_type == "response":
             result.response_content = self._extract_response_content(lines)
-        
-        # 提取任务信息
+            if not result.response_content:
+                result.response_content = result.thought or response[:500]
         elif result.action_type == "task":
             result.task_action, result.task_id, result.task_description = self._extract_task_info(lines)
         
