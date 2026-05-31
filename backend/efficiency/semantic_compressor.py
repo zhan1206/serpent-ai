@@ -20,38 +20,45 @@ class SemanticCompressor:
         """初始化语义压缩器"""
         self.compression_cache: Dict[str, str] = {}
     
+    @staticmethod
+    def head_tail_truncate(items: list, keep_ratio: float = 1/3) -> list:
+        """
+        保留首尾各 keep_ratio 比例的元素，中间用占位符替代。
+        被 TokenOptimizer._smart_truncate 复用以消除代码重复。
+
+        Args:
+            items: 可分割的列表（句子、行等）
+            keep_ratio: 首尾各保留比例（默认 1/3）
+        Returns:
+            截断后的列表（含中间占位符）
+        """
+        if len(items) <= 2:
+            return items
+        keep_start = max(1, int(len(items) * keep_ratio))
+        keep_end = max(1, int(len(items) * keep_ratio))
+        return items[:keep_start] + ['...'] + items[-keep_end:]
+
     def compress(self, text: str, max_length: int = 500) -> str:
         """
         压缩文本，保留首尾关键内容
-        
+
         Args:
             text: 原始文本
             max_length: 最大长度
-            
+
         Returns:
             压缩后的文本
         """
         if len(text) <= max_length:
             return text
-        
+
         sentences = text.split('. ')
-        
-        if len(sentences) <= 2:
-            return text[:max_length] + "..." if len(text) > max_length else text
-        
-        # 保留前1/3和后1/3的句子（首尾通常包含主题和结论）
-        keep_start = max(1, len(sentences) // 3)
-        keep_end = max(1, len(sentences) // 3)
-        
-        start_sentences = sentences[:keep_start]
-        end_sentences = sentences[-keep_end:]
-        
-        result = '. '.join(start_sentences) + '. ... ' + '. '.join(end_sentences)
-        
-        # 如果仍超长，继续截断
+        truncated = self.head_tail_truncate(sentences)
+        result = '. '.join(truncated)
+
         if len(result) > max_length:
             result = result[:max_length] + "..."
-        
+
         return result
     
     def compress_messages(self, messages: List[Dict], max_messages: int = 20) -> List[Dict]:

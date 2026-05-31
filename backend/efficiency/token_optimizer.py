@@ -227,32 +227,32 @@ class TokenOptimizer:
             return None
     
     def _smart_truncate(self, text: str, max_tokens: int) -> str:
-        """智能截断文本，保留关键信息"""
+        """智能截断文本，保留关键信息。复用 SemanticCompressor.head_tail_truncate 消除代码重复。"""
         current_tokens = self.estimate_tokens(text)
         if current_tokens <= max_tokens:
             return text
-        
+
         lines = text.split('\n')
         if len(lines) <= 2:
             char_limit = int(len(text) * max_tokens / current_tokens)
             return text[:char_limit] + "..."
-        
-        keep_start = max(1, len(lines) // 3)
-        keep_end = max(1, len(lines) // 3)
-        
-        start_lines = lines[:keep_start]
-        end_lines = lines[-keep_end:]
-        result_lines = start_lines + ['...（已压缩）...'] + end_lines
-        
-        result = '\n'.join(result_lines)
-        while self.estimate_tokens(result) > max_tokens and len(result_lines) > 4:
-            if len(start_lines) > 1:
-                start_lines = start_lines[:-1]
-            if len(end_lines) > 1:
-                end_lines = end_lines[1:]
-            result_lines = start_lines + ['...（已压缩）...'] + end_lines
-            result = '\n'.join(result_lines)
-        
+
+        from backend.efficiency.semantic_compressor import SemanticCompressor
+        truncated = SemanticCompressor.head_tail_truncate(lines)
+        result = '\n'.join(truncated)
+
+        # 逐步缩减首尾直到满足 token 限制
+        while self.estimate_tokens(result) > max_tokens:
+            real_lines = [l for l in truncated if l != '...']
+            if len(real_lines) <= 2:
+                # 最后手段：直接按字符截断
+                char_limit = int(len(result) * max_tokens / self.estimate_tokens(result))
+                return result[:char_limit] + "..."
+            if len(real_lines) > 2:
+                real_lines = real_lines[1:-1]
+            truncated = real_lines[:max(1, len(real_lines)//2)] + ['...（已压缩）...'] + real_lines[max(1, len(real_lines)//2):]
+            result = '\n'.join(truncated)
+
         return result
     
     def summarize_context(self, messages: List[Dict], max_tokens: int = 500) -> Tuple[str, OptimizationResult]:
